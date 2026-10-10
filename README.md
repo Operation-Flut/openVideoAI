@@ -1,7 +1,7 @@
 # openVideoAI
 
 <p align="center">
-  <img src="http://some_place.com/image.png" />
+  <img src="assets/icon/black_glass.png" />
 </p>
 
 Local-first toolkit for managing open-source image and video enhancement models.
