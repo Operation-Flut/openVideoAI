@@ -52,7 +52,7 @@ jobs:
       windows_version: ${{ steps.resolve.outputs.windows_version }}
     steps:
       - name: Check out repository and tags
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -159,7 +159,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v7
@@ -383,7 +383,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v7
@@ -439,7 +439,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v7
@@ -499,7 +499,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
