@@ -40,6 +40,9 @@ permissions:
   contents: write
 
 jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Resolve the release version from inputs / tags / src/__init__.py
+  # ─────────────────────────────────────────────────────────────────────────────
   release-info:
     name: Resolve release version
     runs-on: ubuntu-latest
@@ -144,104 +147,353 @@ jobs:
           print(f"Resolved release version: v{version} (prerelease={prerelease})")
           PY
 
-  build:
-    name: Build ${{ matrix.name }}
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Windows build – PyInstaller exe + WiX MSI installer
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-windows:
+    name: Build Windows
     needs: release-info
+    runs-on: windows-latest
     env:
       RELEASE_WINDOWS_VERSION: ${{ needs.release-info.outputs.windows_version }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            name: linux
-            shell: bash
-            build_cmd: |
-              python -m pip install --upgrade pip
-              pip install -r requirements.txt
-              python -m PyInstaller --onefile --name openVideoAI --add-data "UI:UI" --add-data "models:models" --collect-all src main.py
-              tar -czf openVideoAI-linux-x64.tar.gz -C dist openVideoAI
-          - os: windows-latest
-            name: windows
-            shell: pwsh
-            build_cmd: |
-              python -m pip install --upgrade pip
-              pip install -r requirements.txt
-              pyinstaller --onefile --name openVideoAI --add-data "UI;UI" --add-data "models;models" --collect-all src main.py
-              Compress-Archive -Path dist\openVideoAI.exe -DestinationPath openVideoAI-windows-x64.zip -Force
-              New-Item -ItemType Directory -Path build -Force | Out-Null
-              @'
-              <?xml version="1.0" encoding="UTF-8"?>
-              <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-                <Product Id="*" Name="openVideoAI" Language="1033" Version="__WINDOWS_VERSION__" Manufacturer="openVideoAI" UpgradeCode="{F32A90F9-E651-4D75-A1B6-717F7F5DAD7E}">
-                  <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
-                  <MediaTemplate />
-                  <Directory Id="TARGETDIR" Name="SourceDir">
-                    <Directory Id="ProgramFilesFolder">
-                      <Directory Id="INSTALLFOLDER" Name="openVideoAI" />
-                    </Directory>
-                  </Directory>
-                  <ComponentGroup Id="ProductComponents">
-                    <Component Id="AppComponent" Directory="INSTALLFOLDER" Guid="{84E48F28-1F68-4CC8-9512-8E7AB32D79B3}">
-                      <File Id="OpenVideoAIExe" Source="dist\openVideoAI.exe" KeyPath="yes" />
-                    </Component>
-                  </ComponentGroup>
-                  <Feature Id="MainFeature" Title="openVideoAI" Level="1">
-                    <ComponentGroupRef Id="ProductComponents" />
-                  </Feature>
-                </Product>
-              </Wix>
-              '@ | Set-Content -Path build\openVideoAI.wxs
-              $wxs = Get-Content -Path build\openVideoAI.wxs -Raw
-              $wxs.Replace("__WINDOWS_VERSION__", $env:RELEASE_WINDOWS_VERSION) | Set-Content -Path build\openVideoAI.wxs
-              & "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin\candle.exe" build\openVideoAI.wxs -out build\openVideoAI.wixobj
-              & "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin\light.exe" build\openVideoAI.wixobj -out openVideoAI-win-x64.msi
-          - os: macos-latest
-            name: macos
-            shell: bash
-            build_cmd: |
-              python -m pip install --upgrade pip
-              pip install -r requirements.txt
-              python -m PyInstaller --onefile --windowed --name openVideoAI --add-data "UI:UI" --add-data "models:models" --collect-all src main.py
-              hdiutil create -volname "openVideoAI" -srcfolder "dist/openVideoAI.app" -ov -format UDZO "openVideoAI-macos.dmg"
-              ditto -c -k --keepParent "dist/openVideoAI.app" "openVideoAI-macos.zip"
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
 
-      - name: Install WiX Toolset
-        if: matrix.name == 'windows'
-        shell: powershell
+      - name: Install Python dependencies
+        shell: pwsh
         run: |
-          choco install wixtoolset -y --no-progress
-          "$env:ProgramFiles(x86)\WiX Toolset v3.14\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # PyInstaller must be installed explicitly; it is not in requirements.txt
+          pip install pyinstaller
 
-      - name: Build binary
-        shell: ${{ matrix.shell }}
-        run: ${{ matrix.build_cmd }}
+      - name: Build executable with PyInstaller
+        shell: pwsh
+        run: |
+          pyinstaller `
+            --noconfirm `
+            --clean `
+            --noconsole `
+            --onefile `
+            --name openVideoAI `
+            --icon "assets\icon\black_glass.ico" `
+            --add-data "UI;UI" `
+            --add-data "assets;assets" `
+            --add-data "models.json;." `
+            --collect-all src `
+            --collect-all webview `
+            --collect-all uvicorn `
+            --collect-all fastapi `
+            --hidden-import webview `
+            --hidden-import webview.platforms.winforms `
+            --hidden-import clr `
+            main.py
 
-      - name: Upload build artifacts
+      - name: Verify executable exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist\openVideoAI.exe")) {
+            Write-Error "dist\openVideoAI.exe not found – PyInstaller build failed"
+            exit 1
+          }
+          $size = (Get-Item "dist\openVideoAI.exe").Length / 1MB
+          Write-Host "dist\openVideoAI.exe  $([math]::Round($size,1)) MB"
+
+      - name: Package portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\openVideoAI.exe `
+                           -DestinationPath openVideoAI-windows-x64-portable.zip `
+                           -Force
+
+      - name: Install WiX Toolset 3
+        shell: pwsh
+        run: |
+          choco install wixtoolset --version 3.14.1 -y --no-progress
+          $wixBin = "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin"
+          if (-not (Test-Path $wixBin)) {
+            # Chocolatey sometimes installs a slightly different sub-path
+            $wixBin = (Get-ChildItem "${env:ProgramFiles(x86)}\WiX Toolset*\bin" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          }
+          if (-not $wixBin) { Write-Error "WiX bin directory not found"; exit 1 }
+          Write-Host "WiX bin: $wixBin"
+          $wixBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Write WiX source file
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path build -Force | Out-Null
+
+          # The WXS is written as a here-string so all special characters are
+          # literal. Version and paths are substituted via PowerShell after.
+          $wxs = @'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+
+            <Product
+              Id="*"
+              Name="openVideoAI"
+              Language="1033"
+              Version="__WINDOWS_VERSION__"
+              Manufacturer="openVideoAI"
+              UpgradeCode="{F32A90F9-E651-4D75-A1B6-717F7F5DAD7E}">
+
+              <Package
+                InstallerVersion="500"
+                Compressed="yes"
+                InstallScope="perUser"
+                Comments="openVideoAI – Local AI Video Enhancement" />
+
+              <!-- Always upgrade: remove any older installed version first -->
+              <MajorUpgrade
+                DowngradeErrorMessage="A newer version of openVideoAI is already installed." />
+
+              <MediaTemplate EmbedCab="yes" />
+
+              <!-- ── Directory layout ────────────────────────────────────── -->
+              <Directory Id="TARGETDIR" Name="SourceDir">
+
+                <!-- Install to %LocalAppData%\Programs\openVideoAI (perUser) -->
+                <Directory Id="LocalAppDataFolder">
+                  <Directory Id="ProgramsFolder" Name="Programs">
+                    <Directory Id="INSTALLFOLDER" Name="openVideoAI" />
+                  </Directory>
+                </Directory>
+
+                <!-- Start Menu shortcut lives under the user's Programs folder -->
+                <Directory Id="ProgramMenuFolder">
+                  <Directory Id="ApplicationProgramsFolder" Name="openVideoAI" />
+                </Directory>
+
+                <!-- Desktop shortcut -->
+                <Directory Id="DesktopFolder" Name="Desktop" />
+
+              </Directory>
+
+              <!-- ── Components ─────────────────────────────────────────── -->
+              <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+
+                <!-- Main executable -->
+                <Component Id="AppExecutable"
+                           Guid="{84E48F28-1F68-4CC8-9512-8E7AB32D79B3}">
+                  <File Id="OpenVideoAIExe"
+                        Source="dist\openVideoAI.exe"
+                        KeyPath="yes" />
+                </Component>
+
+              </ComponentGroup>
+
+              <!-- Start Menu shortcut -->
+              <DirectoryRef Id="ApplicationProgramsFolder">
+                <Component Id="StartMenuShortcut"
+                           Guid="{2C5A1B9E-4F3D-4E8A-B7C6-91D2E5F0A384}">
+                  <Shortcut Id="StartMenuShortcutLink"
+                            Name="openVideoAI"
+                            Description="Local AI Video Enhancement"
+                            Target="[INSTALLFOLDER]openVideoAI.exe"
+                            WorkingDirectory="INSTALLFOLDER"
+                            Icon="AppIcon" />
+                  <RemoveFolder Id="CleanupStartMenu"
+                                Directory="ApplicationProgramsFolder"
+                                On="uninstall" />
+                  <RegistryValue Root="HKCU"
+                                 Key="Software\openVideoAI"
+                                 Name="StartMenuInstalled"
+                                 Type="integer"
+                                 Value="1"
+                                 KeyPath="yes" />
+                </Component>
+              </DirectoryRef>
+
+              <!-- Desktop shortcut -->
+              <DirectoryRef Id="DesktopFolder">
+                <Component Id="DesktopShortcut"
+                           Guid="{7E4B2F1A-8D5C-4A9B-B3E6-C2D1F8A09357}">
+                  <Shortcut Id="DesktopShortcutLink"
+                            Name="openVideoAI"
+                            Description="Local AI Video Enhancement"
+                            Target="[INSTALLFOLDER]openVideoAI.exe"
+                            WorkingDirectory="INSTALLFOLDER"
+                            Icon="AppIcon" />
+                  <RegistryValue Root="HKCU"
+                                 Key="Software\openVideoAI"
+                                 Name="DesktopInstalled"
+                                 Type="integer"
+                                 Value="1"
+                                 KeyPath="yes" />
+                </Component>
+              </DirectoryRef>
+
+              <!-- Application icon (used by shortcuts) -->
+              <Icon Id="AppIcon" SourceFile="assets\icon\black_glass.ico" />
+
+              <!-- Add/Remove Programs entry -->
+              <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+              <Property Id="ARPHELPLINK" Value="https://github.com/openVideoAI/openVideoAI" />
+
+              <!-- ── Features ───────────────────────────────────────────── -->
+              <Feature Id="MainFeature" Title="openVideoAI" Level="1">
+                <ComponentGroupRef Id="ProductComponents" />
+                <ComponentRef Id="StartMenuShortcut" />
+                <ComponentRef Id="DesktopShortcut" />
+              </Feature>
+
+            </Product>
+          </Wix>
+          '@
+
+          $wxs = $wxs.Replace("__WINDOWS_VERSION__", $env:RELEASE_WINDOWS_VERSION)
+          $wxs | Set-Content -Path build\openVideoAI.wxs -Encoding UTF8
+
+      - name: Compile WiX source (candle)
+        shell: pwsh
+        run: |
+          candle.exe build\openVideoAI.wxs -out build\openVideoAI.wixobj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Link WiX object (light)
+        shell: pwsh
+        run: |
+          light.exe build\openVideoAI.wixobj -out openVideoAI-windows-x64.msi
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: openVideoAI-${{ matrix.name }}
+          name: openVideoAI-windows
           path: |
-            openVideoAI-*.zip
-            openVideoAI-*.tar.gz
-            openVideoAI-*.dmg
-            openVideoAI-*.msi
-            dist/**
-          if-no-files-found: warn
+            openVideoAI-windows-x64.msi
+            openVideoAI-windows-x64-portable.zip
 
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Linux build
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-linux:
+    name: Build Linux
+    needs: release-info
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install system dependencies for pywebview
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-dev libwebkit2gtk-4.0-dev gir1.2-webkit2-4.0
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build executable with PyInstaller
+        run: |
+          python -m PyInstaller \
+            --noconfirm \
+            --clean \
+            --onefile \
+            --name openVideoAI \
+            --add-data "UI:UI" \
+            --add-data "assets:assets" \
+            --add-data "models.json:." \
+            --collect-all src \
+            --collect-all webview \
+            --collect-all uvicorn \
+            --collect-all fastapi \
+            --hidden-import webview \
+            main.py
+
+      - name: Package tarball
+        run: tar -czf openVideoAI-linux-x64.tar.gz -C dist openVideoAI
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openVideoAI-linux
+          path: openVideoAI-linux-x64.tar.gz
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # macOS build
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-macos:
+    name: Build macOS
+    needs: release-info
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build app bundle with PyInstaller
+        run: |
+          python -m PyInstaller \
+            --noconfirm \
+            --clean \
+            --windowed \
+            --onefile \
+            --name openVideoAI \
+            --add-data "UI:UI" \
+            --add-data "assets:assets" \
+            --add-data "models.json:." \
+            --collect-all src \
+            --collect-all webview \
+            --collect-all uvicorn \
+            --collect-all fastapi \
+            --hidden-import webview \
+            main.py
+
+      - name: Package DMG and ZIP
+        run: |
+          hdiutil create \
+            -volname "openVideoAI" \
+            -srcfolder "dist/openVideoAI.app" \
+            -ov -format UDZO \
+            "openVideoAI-macos.dmg"
+          ditto -c -k --keepParent "dist/openVideoAI.app" "openVideoAI-macos.zip"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openVideoAI-macos
+          path: |
+            openVideoAI-macos.dmg
+            openVideoAI-macos.zip
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Publish GitHub release
+  # ─────────────────────────────────────────────────────────────────────────────
   release:
     name: Publish release
-    needs: [release-info, build]
+    needs: [release-info, build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
 
@@ -249,21 +501,25 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Download build artifacts
+      - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
           path: release-artifacts
           merge-multiple: true
 
-      - name: Show downloaded artifacts
-        run: ls -R release-artifacts
+      - name: List downloaded artifacts
+        run: ls -Rl release-artifacts
 
       - name: Create GitHub release
         if: github.event_name != 'workflow_dispatch' || inputs['dry-run'] != true
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release-artifacts/**
+            release-artifacts/openVideoAI-windows-x64.msi
+            release-artifacts/openVideoAI-windows-x64-portable.zip
+            release-artifacts/openVideoAI-linux-x64.tar.gz
+            release-artifacts/openVideoAI-macos.dmg
+            release-artifacts/openVideoAI-macos.zip
           draft: ${{ inputs.draft || false }}
           prerelease: ${{ needs.release-info.outputs.prerelease }}
           tag_name: ${{ needs.release-info.outputs.version }}

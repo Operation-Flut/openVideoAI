@@ -49,9 +49,11 @@ from src.core.config import (
 )
 from src.processing.base import ProcessingAborted
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-SETTINGS_FILE = PROJECT_ROOT / "settings.json"
-TEMP_PROCESSING_DIR = PROJECT_ROOT / "temp_processing"
+from .core import paths as _paths
+
+PROJECT_ROOT = _paths.project_root()
+SETTINGS_FILE = _paths.settings_file()
+TEMP_PROCESSING_DIR = _paths.temp_processing_dir()
 
 
 UpscaleFunction = Callable[..., Dict[str, Any]]
@@ -693,7 +695,7 @@ async def get_processing_result(task_id: str):
 
 
 # Serve static UI files
-ui_path = PROJECT_ROOT / "UI"
+ui_path = _paths.ui_dir()
 if ui_path.exists():
     # Mount UI folder for direct access to CSS, JS, etc. at /ui/
     app.mount("/ui", StaticFiles(directory=str(ui_path)), name="ui")

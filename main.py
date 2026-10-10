@@ -9,17 +9,63 @@ import socket
 import threading
 import time
 import argparse
+import logging
 
-# Add src to path
+# Add src to path (needed when running from source; no-op when frozen)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-# Make all console output (including third-party progress prints such as
-# RealESRGAN's "Tile x/y") appear immediately, even when stdout is redirected.
-for _stream in (sys.stdout, sys.stderr):
-    try:
-        _stream.reconfigure(line_buffering=True)
-    except (AttributeError, ValueError, OSError):
-        pass
+# ──────────────────────────────────────────────────────────────────────────────
+# Logging setup
+# In the distributed (frozen) build stdout/stderr go nowhere visible, so we
+# always write to a rotating log file inside %APPDATA%/openVideoAI/logs/.
+# In dev mode we just leave the normal console output in place.
+# ──────────────────────────────────────────────────────────────────────────────
+def _setup_logging() -> None:
+    from src.core.paths import is_frozen, log_file
+
+    handlers: list[logging.Handler] = []
+
+    if is_frozen():
+        # Distributed build: file only (console is invisible anyway)
+        try:
+            from logging.handlers import RotatingFileHandler
+            lf = log_file()
+            fh = RotatingFileHandler(
+                lf, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+            )
+            fh.setFormatter(logging.Formatter(
+                "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            ))
+            handlers.append(fh)
+
+            # Also redirect raw stdout/stderr to the same file so that
+            # third-party progress prints end up in the log.
+            _logfile_obj = open(lf, "a", encoding="utf-8", buffering=1)
+            sys.stdout = _logfile_obj
+            sys.stderr = _logfile_obj
+        except Exception as exc:
+            # If we can't open the log file, fall back silently
+            print(f"Warning: could not set up log file: {exc}", flush=True)
+            handlers.append(logging.StreamHandler(sys.stdout))
+    else:
+        # Dev mode: console only, immediately flushed
+        for _stream in (sys.stdout, sys.stderr):
+            try:
+                _stream.reconfigure(line_buffering=True)
+            except (AttributeError, ValueError, OSError):
+                pass
+        handlers.append(logging.StreamHandler(sys.stdout))
+
+    logging.basicConfig(
+        level=logging.INFO,
+        handlers=handlers,
+    )
+
+
+_setup_logging()
+
+log = logging.getLogger("openVideoAI")
 
 
 def find_free_port(host: str, preferred_port: int, tries: int = 20) -> int:
@@ -67,7 +113,7 @@ def _request_processing_shutdown():
         api_module.request_processing_shutdown()
         return api_module
     except Exception as e:
-        print(f"  (could not notify processing workers: {e})", flush=True)
+        log.warning("Could not notify processing workers: %s", e)
         return None
 
 
@@ -76,10 +122,14 @@ def run_desktop_window(host="127.0.0.1", port=8000, width=1280, height=800):
     try:
         import webview
     except ImportError:
-        print("pywebview not installed. Install with: pip install pywebview")
-        print("Falling back to browser mode...")
+        log.error("pywebview not installed. Install with: pip install pywebview")
+        log.info("Falling back to browser mode...")
         run_server(host, port)
         return
+
+    # Resolve the window icon path
+    from src.core.paths import icon_path
+    _icon = str(icon_path()) if icon_path().exists() else None
 
     # Start server in a daemon background thread
     server_holder = {"thread": None}
@@ -92,7 +142,7 @@ def run_desktop_window(host="127.0.0.1", port=8000, width=1280, height=800):
     server_thread.start()
 
     # Wait for server to start
-    print(f"Starting server on http://{host}:{port}...", flush=True)
+    log.info("Starting server on http://%s:%s...", host, port)
     time.sleep(2)
 
     # Create native window
@@ -102,17 +152,19 @@ def run_desktop_window(host="127.0.0.1", port=8000, width=1280, height=800):
         width=width,
         height=height,
         min_size=(1024, 700),
-        background_color="#121212"
+        background_color="#121212",
     )
 
+    # pywebview ≥ 4 accepts an `icon` kwarg on start() (not create_window)
+    start_kwargs: dict = {"debug": False}
+    if _icon:
+        start_kwargs["icon"] = _icon
+
     # Start the webview event loop (blocks until window closed)
-    webview.start(debug=False)
+    webview.start(**start_kwargs)
 
     # The window is gone: abort any in-flight work, stop the server and exit.
-    # Without this the process kept running in the background, finished the
-    # video, flooded the console with progress and held the port for the next
-    # launch (-> "address already in use").
-    print("Application closed. Shutting down...", flush=True)
+    log.info("Application closed. Shutting down...")
     api_module = _request_processing_shutdown()
 
     stop_server(server_holder, timeout=1.0)
@@ -127,7 +179,7 @@ def run_desktop_window(host="127.0.0.1", port=8000, width=1280, height=800):
             pass
 
     stop_server(server_holder, timeout=3.0)
-    print("Server stopped.", flush=True)
+    log.info("Server stopped.")
 
     # Guarantee the process exits. pywebview may leave non-daemon threads behind
     # which otherwise prevent the interpreter from shutting down.
@@ -149,12 +201,12 @@ def run_browser_mode(host="127.0.0.1", port=8000):
     server_thread.start()
 
     # Wait for server to start
-    print(f"Starting server on http://{host}:{port}...", flush=True)
+    log.info("Starting server on http://%s:%s...", host, port)
     time.sleep(2)
 
     # Open browser
     url = f"http://{host}:{port}"
-    print(f"Opening {url} in browser...", flush=True)
+    log.info("Opening %s in browser...", url)
     webbrowser.open(url)
 
     # Keep main thread alive until Ctrl+C
@@ -162,7 +214,7 @@ def run_browser_mode(host="127.0.0.1", port=8000):
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\nShutting down...", flush=True)
+        log.info("Shutting down...")
         _request_processing_shutdown()
         stop_server(server_holder)
 
@@ -182,20 +234,22 @@ if __name__ == "__main__":
     # Pick a free port automatically so a leftover instance cannot brick startup
     effective_port = find_free_port(args.host, args.port)
     if effective_port is None:
-        print(f"ERROR: No free port available starting from {args.port}. "
-              f"Close other openVideoAI instances and retry.", flush=True)
+        log.error(
+            "No free port available starting from %s. "
+            "Close other openVideoAI instances and retry.", args.port
+        )
         sys.exit(1)
 
-    print("=" * 50)
-    print("openVideoAI - Local AI Video Enhancement")
-    print("=" * 50)
-    print(f"Mode: {args.mode}")
-    print(f"Host: {args.host}")
+    log.info("=" * 50)
+    log.info("openVideoAI - Local AI Video Enhancement")
+    log.info("=" * 50)
+    log.info("Mode: %s", args.mode)
+    log.info("Host: %s", args.host)
     if effective_port != args.port:
-        print(f"Port: {args.port} (in use — using {effective_port})")
+        log.info("Port: %s (in use — using %s)", args.port, effective_port)
     else:
-        print(f"Port: {effective_port}")
-    print(f"URL: http://{args.host}:{effective_port}")
+        log.info("Port: %s", effective_port)
+    log.info("URL: http://%s:%s", args.host, effective_port)
 
     if args.mode == "window":
         run_desktop_window(args.host, effective_port, args.width, args.height)

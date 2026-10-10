@@ -376,7 +376,12 @@ def _load_models_json() -> Dict[str, Any]:
     if _MODELS_JSON_CACHE is not None:
         return _MODELS_JSON_CACHE
 
-    catalog_path = Path(__file__).resolve().parents[2] / "models.json"
+    try:
+        from src.core.paths import models_json as _models_json
+        catalog_path = _models_json()
+    except Exception:
+        catalog_path = Path(__file__).resolve().parents[2] / "models.json"
+
     try:
         _MODELS_JSON_CACHE = json.loads(catalog_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):

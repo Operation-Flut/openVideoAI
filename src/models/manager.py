@@ -10,7 +10,7 @@ from .downloader import ModelDownloader, ModelInfo, DownloadProgress
 class ModelManager:
     """High-level model management combining downloader and initialization"""
     
-    def __init__(self, models_dir: str = "models", models_json: str = "models.json"):
+    def __init__(self, models_dir: str = None, models_json: str = None):
         self.downloader = ModelDownloader(models_dir, models_json)
         self._initialization_complete = False
     

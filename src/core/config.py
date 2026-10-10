@@ -5,12 +5,15 @@ from pathlib import Path
 import json
 from typing import Dict, Any
 from ..utils import system_resources
+from . import paths as _paths
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-SETTINGS_FILE = PROJECT_ROOT / "settings.json"
-TEMP_PROCESSING_DIR = PROJECT_ROOT / "temp_processing"
-MODELS_DIR = PROJECT_ROOT / "models"
-EXPORTS_DIR = PROJECT_ROOT / "exports"
+# These are evaluated at import time so they stay stable for the process
+# lifetime, but they already call the right resolver (dev vs. frozen).
+PROJECT_ROOT       = _paths.project_root()
+SETTINGS_FILE      = _paths.settings_file()
+TEMP_PROCESSING_DIR = _paths.temp_processing_dir()
+MODELS_DIR         = _paths.models_dir()
+EXPORTS_DIR        = _paths.exports_dir()
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
     # System Resources (RAM/VRAM are percentages of system max, CPU is thread count)

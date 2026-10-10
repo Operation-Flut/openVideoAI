@@ -62,9 +62,10 @@ class DownloadProgress:
 class ModelDownloader:
     """Handles downloading and managing AI models"""
     
-    def __init__(self, models_dir: str = "models", models_json: str = "models.json"):
-        self.models_dir = Path(models_dir)
-        self.models_json = Path(models_json)
+    def __init__(self, models_dir: str = None, models_json: str = None):
+        from src.core.paths import models_dir as _models_dir, models_json as _models_json
+        self.models_dir = Path(models_dir) if models_dir is not None else _models_dir()
+        self.models_json = Path(models_json) if models_json is not None else _models_json()
         self.models_dir.mkdir(parents=True, exist_ok=True)
         self._progress_callbacks: List[Callable[[DownloadProgress], None]] = []
         self._cancel_flags: Dict[str, bool] = {}
