@@ -366,7 +366,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openVideoAI-windows
           path: |
@@ -424,7 +424,7 @@ jobs:
         run: tar -czf openVideoAI-linux-x64.tar.gz -C dist openVideoAI
 
       - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openVideoAI-linux
           path: openVideoAI-linux-x64.tar.gz
@@ -481,7 +481,7 @@ jobs:
           ditto -c -k --keepParent "dist/openVideoAI.app" "openVideoAI-macos.zip"
 
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openVideoAI-macos
           path: |
