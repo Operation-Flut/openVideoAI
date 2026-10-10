@@ -1,0 +1,727 @@
+{
+    "models": [
+        {
+            "name": "Real-ESRGAN",
+            "description": "A practical algorithm for general image restoration, particularly excelling at upscaling and enhancing textures. It serves as the core engine for many open-source upscaling interfaces due to its speed and FP16 GPU support.",
+            "size": "~65MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/xinntao/Real-ESRGAN",
+            "downloadUrl": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
+            "descriptionShort": "Fast, general-purpose image upscaling and texture enhancement.",
+            "features": [
+                {
+                    "name": "Upscale",
+                    "description": "Increases image resolution up to 4x while reconstructing sharp edges and realistic textures."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "CodeFormer",
+            "description": "A robust face restoration algorithm for old photos and AI-generated faces. It uses a codebook-based approach to reconstruct heavily degraded, blurred, or pixelated faces with high fidelity.",
+            "size": "~150MB",
+            "weight": "Medium",
+            "url": "https://github.com/sczhou/CodeFormer",
+            "downloadUrl": "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth",
+            "descriptionShort": "Advanced face restoration for restoring heavily degraded or blurred facial details.",
+            "features": [
+                {
+                    "name": "Face Recovery",
+                    "description": "Identifies and reconstructs facial features from severe degradation, pixelation, or heavy noise."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "NAFNet",
+            "description": "A lightning-fast image restoration model that uses a Nonlinear Activation Free Network. It is highly optimized for removing camera shake, motion blur, and out-of-focus blur with minimal computational overhead.",
+            "size": "~15MB",
+            "weight": "Ultra-Lightweight",
+            "url": "https://github.com/megvii-research/NAFNet",
+            "downloadUrl": "https://huggingface.co/nyanko7/nafnet-models/resolve/main/NAFNet-GoPro-width64.pth",
+            "descriptionShort": "Blazing fast image deblurring and sharpness enhancement.",
+            "features": [
+                {
+                    "name": "Sharpen / Deblur",
+                    "description": "Removes motion blur, camera shake, and out-of-focus softness to restore crisp edges."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "SCUNet",
+            "description": "A practical image denoising model combining Swin Transformer and UNet architectures. It effectively removes high-ISO camera grain and severe JPEG compression artifacts without destroying fine edges or textures.",
+            "size": "~45MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/cszn/SCUNet",
+            "downloadUrl": "https://github.com/cszn/KAIR/releases/download/v1.0/scunet_color_real_psnr.pth",
+            "descriptionShort": "Removes camera grain and JPEG artifacts while preserving edges.",
+            "features": [
+                {
+                    "name": "Denoise",
+                    "description": "Cleans up high-ISO noise, color speckles, and heavy JPEG compression artifacts."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "RIFE",
+            "description": "Real-Time Intermediate Flow Estimation for video frame interpolation. An incredibly fast and lightweight model used to generate smooth slow-motion or convert low-framerate videos (e.g., 24fps to 60fps) by predicting and inserting intermediate frames.",
+            "size": "~20MB",
+            "weight": "Ultra-Lightweight",
+            "url": "https://github.com/vladmandic/rife",
+            "downloadUrl": null,
+            "descriptionShort": "Fast video frame interpolation and smooth slow-motion generation.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Generates artificial intermediate frames to increase video framerates."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Produces extremely smooth slow-motion playback from standard framerate video."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "RIFE v4.26 (PyTorch)",
+            "description": "Practical-RIFE v4.26 checkpoint archive hosted on Hugging Face. The archive contains model assets and requires the compatible Practical-RIFE runtime.",
+            "size": "~23MB",
+            "weight": "Ultra-Lightweight",
+            "url": "https://huggingface.co/thornmaze/RIFE",
+            "downloadUrl": "https://huggingface.co/thornmaze/RIFE/resolve/main/RIFEv4.26_0921.zip",
+            "descriptionShort": "RIFE v4.26 PyTorch model archive for video frame interpolation.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Generates intermediate video frames to increase frame rate."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Creates smoother slow-motion video by interpolating between frames."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "RIFE 4.25 (MLX)",
+            "description": "Apple Silicon MLX conversion of the RIFE 4.25 frame-interpolation model. It requires the MLX RIFE runtime and is not a PyTorch checkpoint.",
+            "size": "~23MB",
+            "weight": "Ultra-Lightweight",
+            "url": "https://huggingface.co/mlx-community/RIFE-4.25",
+            "downloadUrl": "https://huggingface.co/mlx-community/RIFE-4.25/resolve/main/model.safetensors",
+            "descriptionShort": "Apple Silicon MLX weights for RIFE 4.25 frame interpolation.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Generates intermediate video frames using the MLX runtime on Apple Silicon."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Creates smoother slow-motion video by interpolating between frames."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": false,
+            "requiresMetal": true,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "WMS-RIFE v3 (PyTorch)",
+            "description": "RIFE v3 fine-tuned for high-resolution weather and satellite imagery sequences. The checkpoint is specialized for that domain and requires the repository's PyTorch inference code.",
+            "size": "~12MB",
+            "weight": "Ultra-Lightweight",
+            "url": "https://huggingface.co/Anson-Saju-George/wms-rifev3",
+            "downloadUrl": "https://huggingface.co/Anson-Saju-George/wms-rifev3/resolve/main/train_log_wms_custom_loss/flownet.pkl",
+            "descriptionShort": "Domain-specific RIFE v3 checkpoint for weather and satellite video.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Interpolates frames in weather and satellite imagery sequences."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Creates smoother slow-motion video for supported satellite and weather footage."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "RIFE (PyTorch Safetensors)",
+            "description": "RIFE v4 PyTorch checkpoint in safetensors format, hosted with a compatible model definition. It requires the repository's PyTorch inference code.",
+            "size": "~12MB",
+            "weight": "Ultra-Lightweight",
+            "url": "https://huggingface.co/TensorForger/RIFE-safetensors",
+            "downloadUrl": "https://huggingface.co/TensorForger/RIFE-safetensors/resolve/main/flownet.safetensors",
+            "descriptionShort": "RIFE v4 weights in PyTorch-compatible safetensors format.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Generates intermediate video frames between two input frames."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Creates smoother slow-motion video by interpolating between frames."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "RIFE v4.9 (ONNX)",
+            "description": "ONNX export of RIFE v4.9 for video frame interpolation. It requires an ONNX Runtime integration and is not a PyTorch checkpoint.",
+            "size": "~21MB",
+            "weight": "Ultra-Lightweight",
+            "url": "https://huggingface.co/edgetools/rife",
+            "downloadUrl": "https://huggingface.co/edgetools/rife/resolve/main/rife49.onnx",
+            "descriptionShort": "RIFE v4.9 ONNX model for video frame interpolation.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Generates intermediate video frames with the ONNX Runtime."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Creates smoother slow-motion video by interpolating between frames."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "FILM",
+            "description": "Frame Interpolation for Large Motion by Google Research. Designed specifically to handle challenging scenes with large movement between frames, offering robust frame recovery and interpolation where faster models might fail.",
+            "size": "~130MB",
+            "weight": "Medium",
+            "url": "https://github.com/google-research/frame-interpolation",
+            "downloadUrl": null,
+            "descriptionShort": "High-quality frame interpolation optimized for handling large motion and gaps.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Interpolates missing frames between images with significant motion differences."
+                },
+                {
+                    "name": "Frame Recovery",
+                    "description": "Capable of reconstructing heavily stuttering or dropped frames in a sequence."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "Farnebäck Optical Flow",
+            "description": "A classic dense optical flow algorithm developed by Gunnar Farnebäck based on polynomial expansion. Pure mathematical vector field estimation with zero VRAM requirement and no neural network weights.",
+            "size": "Built-in (< 1MB)",
+            "weight": "Ultra-Lightweight (0 VRAM)",
+            "url": "https://docs.opencv.org/4.x/d4/dee/tutorial_optical_flow.html",
+            "downloadUrl": null,
+            "isAi": false,
+            "descriptionShort": "Dense polynomial optical flow for mathematical frame interpolation.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Synthesizes intermediate motion frames by computing dense polynomial optical flow displacement vectors."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Generates slow-motion playback through mathematical vector field interpolation."
+                }
+            ],
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "DIS Optical Flow",
+            "description": "Dense Inverse Search (DIS) optical flow algorithm (Kroeger et al.). An extremely fast variational mathematical flow estimator that runs in real-time on CPU, computing dense motion fields without deep learning.",
+            "size": "Built-in (< 1MB)",
+            "weight": "Ultra-Lightweight (0 VRAM)",
+            "url": "https://docs.opencv.org/4.x/da/d06/classcv_1_1DISOpticalFlow.html",
+            "downloadUrl": null,
+            "isAi": false,
+            "descriptionShort": "Ultra-fast variational mathematical optical flow for real-time motion interpolation.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Computes high-speed inverse search displacement fields to synthesize intermediate frames."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Produces fluid slow motion via multi-scale inverse search motion vectors."
+                }
+            ],
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "Dual TV-L1 Optical Flow",
+            "description": "Total Variation L1 (Dual TV-L1) mathematical optical flow formulated by Zach, Pock, and Bischof. Minimizes an energy functional combining total variation regularization with L1 data fidelity, excelling at motion boundaries and illumination shifts with 0 VRAM.",
+            "size": "Built-in (< 1MB)",
+            "weight": "Ultra-Lightweight (0 VRAM)",
+            "url": "https://docs.opencv.org/4.x/dc/d47/classcv_1_1DualTVL1OpticalFlow.html",
+            "downloadUrl": null,
+            "isAi": false,
+            "descriptionShort": "High-precision total-variation mathematical optical flow preserving sharp motion boundaries.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Interpolates video frames using energy-minimization total variation motion fields."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Creates slow-motion sequences by computing discontinuity-preserving optical flow."
+                }
+            ],
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "Lucas-Kanade (Pyramidal LK)",
+            "description": "The classical differential optical flow method developed by Bruce Lucas and Takeo Kanade with multi-scale Gaussian pyramids. Solves the optical flow equations via spatial intensity gradients with zero neural network dependencies.",
+            "size": "Built-in (< 1MB)",
+            "weight": "Ultra-Lightweight (0 VRAM)",
+            "url": "https://docs.opencv.org/4.x/d4/dee/tutorial_optical_flow.html",
+            "downloadUrl": null,
+            "isAi": false,
+            "descriptionShort": "Classical pyramidal differential optical flow for motion estimation and interpolation.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Interpolates frames using multi-scale pyramidal differential motion vector fields."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Synthesizes smooth slow-motion frames via gradient-based optical flow."
+                }
+            ],
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "RAFT Optical Flow",
+            "description": "Recurrent All-Pairs Field Transforms (RAFT) - a deep learning optical flow model that iteratively refines flow estimates. High accuracy for complex motion but requires GPU.",
+            "size": "~20MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/princeton-vl/RAFT",
+            "downloadUrl": "https://huggingface.co/edgetools/RAFT/resolve/main/raft_things.pth",
+            "isAi": true,
+            "descriptionShort": "Deep learning recurrent optical flow for high-accuracy motion estimation.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Generates intermediate frames using recurrent all-pairs field transforms."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Creates smooth slow-motion via iterative flow refinement."
+                }
+            ],
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "FlowFormer Optical Flow",
+            "description": "FlowFormer - Transformer-based optical flow with global attention. State-of-the-art accuracy for challenging motion sequences.",
+            "size": "~40MB",
+            "weight": "Medium",
+            "url": "https://github.com/drinkingcoder/FlowFormer",
+            "downloadUrl": "https://huggingface.co/edgetools/FlowFormer/resolve/main/flowformer_things.pth",
+            "isAi": true,
+            "descriptionShort": "Transformer-based optical flow with global attention for complex motion.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "High-accuracy frame interpolation using transformer-based optical flow."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Premium slow-motion generation with attention-based flow estimation."
+                }
+            ],
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "GMA Optical Flow",
+            "description": "Global Motion Aggregation (GMA) optical flow - combines local and global motion reasoning for robust flow estimation in challenging scenarios.",
+            "size": "~25MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/zacjiang/GMA",
+            "downloadUrl": "https://huggingface.co/edgetools/GMA/resolve/main/gma_things.pth",
+            "isAi": true,
+            "descriptionShort": "Global motion aggregation for robust optical flow in complex scenes.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Interpolates frames using global-local motion aggregation."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Smooth slow-motion with global motion reasoning."
+                }
+            ],
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "SPyNet Optical Flow",
+            "description": "Spatial Pyramid Network (SPyNet) - a lightweight deep learning optical flow model that runs efficiently on CPU and GPU. Good balance of speed and accuracy.",
+            "size": "~5MB",
+            "weight": "Ultra-Lightweight",
+            "url": "https://github.com/princeton-vl/RAFT",
+            "downloadUrl": "https://huggingface.co/edgetools/SPyNet/resolve/main/spynet_sintel_final.pth",
+            "isAi": true,
+            "descriptionShort": "Lightweight spatial pyramid network for efficient optical flow.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Efficient frame interpolation using spatial pyramid flow estimation."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Real-time slow-motion with pyramid-based flow."
+                }
+            ],
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "EpicFlow Optical Flow",
+            "description": "EpicFlow - edge-preserving interpolation of correspondences for optical flow. Classical algorithm with strong edge handling, no deep learning required.",
+            "size": "Built-in (< 1MB)",
+            "weight": "Ultra-Lightweight (0 VRAM)",
+            "url": "https://github.com/reuter/epicflow",
+            "downloadUrl": null,
+            "isAi": false,
+            "descriptionShort": "Edge-preserving classical optical flow for motion interpolation.",
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Interpolates frames using edge-preserving correspondence interpolation."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Slow-motion with strong motion boundary preservation."
+                }
+            ],
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "RealBasicVSR",
+            "description": "A powerful multi-frame video enhancement model. It simultaneously handles heavy shadow noise, compression artifacts, and temporal flicker common in poorly shot LOG footage, reconstructing clean high-frequency details across frames.",
+            "size": "~120MB",
+            "weight": "Medium",
+            "url": "https://github.com/ckkelvinchan/RealBasicVSR",
+            "downloadUrl": "https://huggingface.co/akhaliq/RealBasicVSR_x4/resolve/main/RealBasicVSR_x4.pth",
+            "descriptionShort": "Multi-frame video restoration for cleaning noisy, low-light, or degraded LOG footage.",
+            "features": [
+                {
+                    "name": "Multipurpose Restoration",
+                    "description": "Simultaneously cleans heavy compression, denoises, and sharpens moving video."
+                },
+                {
+                    "name": "Upscale",
+                    "description": "Increases video resolution using temporal data from multiple frames."
+                },
+                {
+                    "name": "Log Restoration",
+                    "description": "Cleans up severe shadow noise, exposure flaws, and temporal artifacts unique to flat LOG video profiles."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "Real-CUGAN",
+            "description": "Real Cascade U-Nets for Anime Image Super Resolution. A highly optimized multipurpose model specifically trained for 2D illustrations and anime. It excels at instantly removing JPEG artifacts, denoising, and upscaling in a single pass.",
+            "size": "~40MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/bilibili/ailab/tree/main/Real-CUGAN",
+            "downloadUrl": "https://github.com/ZHCSOFT/Real-CUGAN/releases/download/Real-CUGAN/weights_v3.zip",
+            "descriptionShort": "Multipurpose 2D/anime image upscaling, denoising, and artifact removal.",
+            "features": [
+                {
+                    "name": "Multipurpose Pipeline",
+                    "description": "Combines artifact removal, line-art smoothing, and noise reduction in one go."
+                },
+                {
+                    "name": "Upscale",
+                    "description": "Optimized to upscale flat colors and line art without introducing blur."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "NLUT",
+            "description": "Neural-based 3D Lookup Table generator. It analyzes a reference image, extracts its cinematic look, and generates an Image-Adaptive 3D LUT to apply the exact color grading to your target image in real-time.",
+            "size": "~45MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/semchan/NLUT",
+            "downloadUrl": null,
+            "descriptionShort": "Extracts colors from a reference image and creates a fast 3D LUT.",
+            "features": [
+                {
+                    "name": "Match Color",
+                    "description": "Transfers color grading, contrast, and style from a reference image to target media."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "Deep Color Transfer",
+            "description": "Uses deep learning and histogram analogies to perform photorealistic color transfer between images. It preserves semantic structures, ensuring skies match skies and skin matches skin.",
+            "size": "~110MB",
+            "weight": "Medium",
+            "url": "https://github.com/codeslake/Color_Transfer_Histogram_Analogy",
+            "downloadUrl": null,
+            "descriptionShort": "Advanced, semantically-aware color transfer for complex lighting.",
+            "features": [
+                {
+                    "name": "Match Color",
+                    "description": "Transfers color grading, contrast, and style from a reference image to target media."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "Reinhard Transfer",
+            "description": "A classic, non-AI mathematical approach to color transfer. It maps the color space mean and standard deviation from the source to the target instantly with zero VRAM usage.",
+            "size": "< 1MB",
+            "weight": "Ultra-Lightweight",
+            "url": "https://github.com/jrosebr1/color_transfer",
+            "downloadUrl": null,
+            "descriptionShort": "Instant, zero-VRAM mathematical color matching.",
+            "features": [
+                {
+                    "name": "Match Color",
+                    "description": "Transfers color grading, contrast, and style from a reference image to target media."
+                }
+            ],
+            "isAi": false,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "Sapsan-VFI",
+            "description": "Sapsan-VFI is a deep learning model for video frame interpolation. It is designed to generate intermediate frames between two input frames, enabling smooth slow-motion effects and higher frame rates.",
+            "size": "~270MB",
+            "weight": "Heavyweight",
+            "url": "https://huggingface.co/SnJake/Sapsan-VFI",
+            "downloadUrl": "https://huggingface.co/SnJake/Sapsan-VFI/resolve/main/Sapsan-VFI.pt",
+            "descriptionShort": "Deep learning model for up to 2x video frame interpolation and slow-motion generation.",
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false,
+            "features": [
+                {
+                    "name": "Frame Interpolation",
+                    "description": "Generates intermediate frames between two input frames for smooth video playback."
+                },
+                {
+                    "name": "SloMo",
+                    "description": "Creates slow-motion effects by interpolating frames in video sequences."
+                }
+            ]
+        }
+    ],
+    "features": [
+        {
+            "name": "Upscale",
+            "description": "Increases image and video resolution up to 4x while reconstructing sharp edges, textures, and line art."
+        },
+        {
+            "name": "Face Recovery",
+            "description": "Identifies and reconstructs high-fidelity facial features from severe degradation, blur, or heavy pixelation."
+        },
+        {
+            "name": "Sharpen / Deblur",
+            "description": "Removes motion blur, camera shake, and out-of-focus softness using low-latency neural operations."
+        },
+        {
+            "name": "Denoise",
+            "description": "Eliminates high-ISO sensor grain, color speckles, and heavy JPEG compression artifacts without blurring edges."
+        },
+        {
+            "name": "Frame Interpolation",
+            "description": "Synthesizes intermediate motion frames to boost video framerates (e.g., 24fps to 60fps) or fill gaps between images."
+        },
+        {
+            "name": "SloMo",
+            "description": "Generates fluid slow-motion playback by generating motion-aware synthetic frames."
+        },
+        {
+            "name": "Frame Recovery",
+            "description": "Reconstructs missing, skipped, or stuttering frames across scenes with large motion changes."
+        },
+        {
+            "name": "Multipurpose Restoration",
+            "description": "Combines noise removal, deblurring, compression cleanup, and line-art smoothing into a single processing pass."
+        },
+        {
+            "name": "Correct Distortion",
+            "description": "Corrects lens distortion, perspective skew, and other geometric artifacts in images and videos."
+        },
+        {
+            "name": "Low-Light Enhancement",
+            "description": "Restores details, exposure, and dynamic range in underexposed or night photos without noise amplification."
+        },
+        {
+            "name": "Colorization",
+            "description": "Restores vibrant, natural colors to black-and-white or severely faded historical photos."
+        },
+        {
+            "name": "Object Removal",
+            "description": "Erases unwanted objects, text, watermarks, or blemishes from images and videos using AI inpainting."
+        },
+        {
+            "name": "Match Color",
+            "description": "Extracts the color palette, contrast levels, and grading style from a reference photo and applies it to the target image or video without altering its underlying content."
+        },
+        {
+            "name": "Log Restoration",
+            "description": "Transforms flat, underexposed, or noisy LOG video footage (S-Log, C-Log, D-Log) into crisp, high-contrast, color-corrected Rec.709 footage using AI tone mapping and shadow denoising."
+        },
+        {
+            "name": "SDR to HDR",
+            "description": "Converts standard dynamic range (SDR) video into high dynamic range (HDR) formats like HDR10 or Dolby Vision by intelligently expanding contrast and color gamut."
+        },
+        {
+            "name": "Focus Fix",
+            "description": "Corrects out-of-focus or soft footage by enhancing edge sharpness and restoring fine details using multi-frame analysis."
+        }
+    ],
+    "modules": [
+        {
+            "module": "Log_Rescue_and_Restoration",
+            "display_name": "LOG Footage Enhancer & Neural Color Grade",
+            "description": "Transforms flat, underexposed, or noisy LOG footage into clear, high-dynamic-range Rec.709 video using AI-driven tone mapping, neural LUTs, and temporal denoising.",
+            "processing_pipeline": {
+                "step_1": {
+                    "process": "Temporal Denoising",
+                    "model": "RViDeNet (Raw Video Denoising Network) / BasicVSR++",
+                    "purpose": "Cleans heavy chroma and luma sensor noise typical in shadows of underexposed or pushed LOG footage prior to color boosting, preserving sharp details."
+                },
+                "step_2": {
+                    "process": "Exposure & Contrast Recovery",
+                    "model": "Zero-DCE (Zero-Reference Deep Curve Estimation)",
+                    "purpose": "Acts as an AI auto-exposure tool, dynamically adjusting the light curve to recover crushed shadows and balance blown-out highlights without requiring paired reference data."
+                },
+                "step_3": {
+                    "process": "Neural Tone Mapping & Color Restoration",
+                    "models": [
+                        {
+                            "name": "FastLLVE",
+                            "repo": "Wenhao-Li-777/FastLLVE",
+                            "type": "Intensity-Aware Lookup Table",
+                            "purpose": "Applies real-time low-light video enhancement to dramatically improve color constancy and brightness while preventing inter-frame flickering."
+                        },
+                        {
+                            "name": "ITMLUT",
+                            "repo": "AndreGuo/ITMLUT",
+                            "type": "AI-Optimized 3D-LUT",
+                            "purpose": "Projects the flat LOG gamma curve into standard Rec.709 or HDR color spaces with precision, restoring natural skin tones and saturation with minimal interpolation error."
+                        }
+                    ]
+                }
+            },
+            "supported_input_profiles": [
+                "Sony S-Log2 / S-Log3",
+                "Canon C-Log",
+                "Panasonic V-Log",
+                "Arri LogC",
+                "DJI D-Log",
+                "Generic Flat / Neutral"
+            ],
+            "configuration_parameters": {
+                "denoise_strength": {
+                    "type": "float",
+                    "range": [
+                        0.0,
+                        1.0
+                    ],
+                    "default": 0.6
+                },
+                "shadow_recovery": {
+                    "type": "float",
+                    "range": [
+                        0.0,
+                        1.0
+                    ],
+                    "default": 0.8
+                },
+                "color_space_target": {
+                    "type": "enum",
+                    "options": [
+                        "Rec.709",
+                        "Rec.2020",
+                        "HDR10"
+                    ],
+                    "default": "Rec.709"
+                }
+            }
+        }
+    ],
+    "trusted_sources": [
+        {
+            "name": "Hugging Face",
+            "url": "https://huggingface.co/",
+            "description": "A popular platform for hosting and sharing machine learning models, including PyTorch, TensorFlow, and ONNX formats."
+        },
+        {
+            "name": "GitHub",
+            "url": "https://github.com/",
+            "description": "The Most Popular Git repo registry and hoster for open-source projects, including AI model repositories."
+        }
+    ]
+}

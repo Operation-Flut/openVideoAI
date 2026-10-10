@@ -1,0 +1,55 @@
+# AI Models
+/models/*
+
+# Python
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# Distribution / Packaging
+dist/
+build/
+*.egg-info/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Runtime-generated config (machine-specific)
+/settings.json
+
+# Local build artifacts / installers
+/openVideoAI-*.msi
+/openVideoAI-*.zip
+/openVideoAI-*.wixpdb
+
+# Environment
+.env
+.env.local
+
+# Testing and Outputs
+.coverage
+htmlcov/
+.pytest_cache/
+temp_processing/
+exports/
+*.tmp
+*.temp
+result_*
+test_*_out.*

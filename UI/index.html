@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>openVideoAI</title>
+    <link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+    <header>
+        <h1>openVideoAI</h1>
+        <nav style="display: flex; gap: 1rem; align-items: center;">
+            <a href="/model-manager" class="nav-link" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem; padding: 0.5rem 1rem; border-radius: 6px; transition: background-color 0.2s, color 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-dark)'; this.style.color='var(--text-main)'" onmouseout="this.style.backgroundColor='transparent'; this.style.color='var(--text-muted)'">
+                Manage Models
+            </a>
+            <a href="/settings" class="nav-link" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem; padding: 0.5rem 1rem; border-radius: 6px; transition: background-color 0.2s, color 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-dark)'; this.style.color='var(--text-main)'" onmouseout="this.style.backgroundColor='transparent'; this.style.color='var(--text-muted)'">
+                Settings
+            </a>
+            <span style="font-size: 0.875rem; color: var(--text-muted);">Powered by Open Source Models</span>
+        </nav>
+    </header>
+
+    <div class="layout">
+        <main class="workspace">
+            <div class="drop-zone" id="dropZone">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+                <h3>Drag & Drop Media Here</h3>
+                <p style="margin-top: 0.5rem; font-size: 0.875rem;">Supports JPG, PNG, MP4</p>
+            </div>
+        </main>
+
+        <aside class="sidebar">
+            <div style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
+                <h2 style="font-size: 1.1rem; font-weight: 600;">Enhancement Pipeline</h2>
+            </div>
+
+            <!-- Base Upscale Model (Required) -->
+            <div class="feature-section" id="section-base">
+                <div class="feature-header">
+                    <h3>Base Upscale</h3>
+                    <span class="feature-badge required">Required</span>
+                </div>
+                <div class="feature-content">
+                    <div class="control-group">
+                        <label>Primary Model</label>
+                        <select id="baseModelSelect">
+                            <option value="">Loading models...</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Upscale Multiplier</label>
+                        <select id="upscaleSelect">
+                            <option>2x</option>
+                            <option selected>4x</option>
+                            <option>8x</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-separator"></div>
+
+            <!-- Face Recovery -->
+            <div class="feature-section" id="section-face" data-feature="Face Recovery">
+                <div class="feature-header">
+                    <div class="feature-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="faceToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-info">
+                        <h3>Face Recovery</h3>
+                        <span class="feature-desc">Restore degraded facial details</span>
+                    </div>
+                    <span class="feature-badge" id="faceBadge"></span>
+                </div>
+                <div class="feature-content" id="faceContent">
+                    <div class="control-group">
+                        <label>Face Model</label>
+                        <select id="faceModelSelect">
+                            <option value="">No face recovery models</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-separator"></div>
+
+            <!-- Sharpen / Deblur -->
+            <div class="feature-section" id="section-sharpen" data-feature="Sharpen / Deblur">
+                <div class="feature-header">
+                    <div class="feature-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="sharpenToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-info">
+                        <h3>Sharpen / Deblur</h3>
+                        <span class="feature-desc">Remove blur and enhance edges</span>
+                    </div>
+                    <span class="feature-badge" id="sharpenBadge"></span>
+                </div>
+                <div class="feature-content" id="sharpenContent">
+                    <div class="control-group">
+                        <label>Deblur Model</label>
+                        <select id="sharpenModelSelect">
+                            <option value="">No deblur models</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Strength: <span id="sharpenVal">50</span>%</label>
+                        <input type="range" min="0" max="100" value="50" id="sharpenStrength" oninput="document.getElementById('sharpenVal').innerText = this.value">
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-separator"></div>
+
+            <!-- Denoise -->
+            <div class="feature-section" id="section-denoise" data-feature="Denoise">
+                <div class="feature-header">
+                    <div class="feature-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="denoiseToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-info">
+                        <h3>Denoise</h3>
+                        <span class="feature-desc">Remove noise and compression artifacts</span>
+                    </div>
+                    <span class="feature-badge" id="denoiseBadge"></span>
+                </div>
+                <div class="feature-content" id="denoiseContent">
+                    <div class="control-group">
+                        <label>Denoise Model</label>
+                        <select id="denoiseModelSelect">
+                            <option value="">No denoise models</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Strength: <span id="denoiseVal">50</span>%</label>
+                        <input type="range" min="0" max="100" value="50" id="denoiseStrength" oninput="document.getElementById('denoiseVal').innerText = this.value">
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-separator"></div>
+
+            <!-- Frame Interpolation -->
+            <div class="feature-section" id="section-frame" data-feature="Frame Interpolation">
+                <div class="feature-header">
+                    <div class="feature-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="frameToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-info">
+                        <h3>Frame Interpolation</h3>
+                        <span class="feature-desc">Increase video framerate</span>
+                    </div>
+                    <span class="feature-badge" id="frameBadge"></span>
+                </div>
+                <div class="feature-content" id="frameContent">
+                    <div class="control-group">
+                        <label>Interpolation Model</label>
+                        <select id="frameModelSelect">
+                            <option value="">No interpolation models</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Target FPS</label>
+                        <select id="fpsSelect">
+                            <option>25 (Original)</option>
+                            <option>30</option>
+                            <option>50</option>
+                            <option selected>60</option>
+                            <option>120</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Slow Motion Factor</label>
+                        <select id="slowmoSelect">
+                            <option>1.0x (Normal)</option>
+                            <option>0.5x</option>
+                            <option>0.25x</option>
+                        </select>
+                    </div>
+                    <div class="control-group toggle-container">
+                        <div>
+                            <label style="margin-bottom: 0;">Scene Change Detection</label>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">Prevent artifacts at cuts</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked id="sceneDetectToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-separator"></div>
+
+            <!-- Match Color -->
+            <div class="feature-section" id="section-color" data-feature="Match Color">
+                <div class="feature-header">
+                    <div class="feature-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="colorToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-info">
+                        <h3>Match Color</h3>
+                        <span class="feature-desc">Apply the look of a reference image</span>
+                    </div>
+                    <span class="feature-badge" id="colorBadge"></span>
+                </div>
+                <div class="feature-content" id="colorContent">
+                    <div class="control-group">
+                        <label for="colorModelSelect">Color Matching Model</label>
+                        <select id="colorModelSelect">
+                            <option value="">No color matching models downloaded</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="colorReferenceInput">Reference Image</label>
+                        <input id="colorReferenceInput" type="file" accept="image/*">
+                        <span class="feature-desc" id="colorReferenceName">No reference image selected</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-separator"></div>
+
+            <!-- LOG Rescue & Restoration -->
+            <div class="feature-section" id="section-log" data-feature="Log Restoration" data-module="Log_Rescue_and_Restoration">
+                <div class="feature-header">
+                    <div class="feature-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="logRescueToggle" disabled>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-info">
+                        <h3 id="logRescueTitle">LOG Footage Enhancer</h3>
+                        <span class="feature-desc" id="logRescueDescription">Load module settings to configure LOG video restoration.</span>
+                    </div>
+                    <span class="feature-badge" id="logRescueBadge"></span>
+                </div>
+                <div class="feature-content" id="logRescueContent">
+                    <div class="control-group">
+                        <label for="logModelSelect">Restoration Model</label>
+                        <select id="logModelSelect" disabled>
+                            <option value="">No LOG restoration models downloaded</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="logProfileSelect">Input Profile</label>
+                        <select id="logProfileSelect" disabled>
+                            <option value="">Loading profiles...</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="logDenoiseStrength">Temporal Denoising: <span id="logDenoiseValue">0.60</span></label>
+                        <input id="logDenoiseStrength" type="range" min="0" max="1" step="0.05" value="0.6" disabled>
+                    </div>
+                    <div class="control-group">
+                        <label for="logShadowRecovery">Shadow Recovery: <span id="logShadowValue">0.80</span></label>
+                        <input id="logShadowRecovery" type="range" min="0" max="1" step="0.05" value="0.8" disabled>
+                    </div>
+                    <div class="control-group">
+                        <label for="logColorSpace">Output Color Space</label>
+                        <select id="logColorSpace" disabled>
+                            <option value="">Loading targets...</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Processing Pipeline</label>
+                        <ol id="logPipelineSteps" class="feature-desc"></ol>
+                    </div>
+                    <p class="feature-desc">Settings are collected for the enhancement request. LOG processing is not implemented yet.</p>
+                </div>
+            </div>
+
+            <div class="feature-separator"></div>
+
+            <!-- Output Settings -->
+            <div class="feature-section" id="section-output">
+                <div class="feature-header">
+                    <h3>Output Settings</h3>
+                </div>
+                <div class="feature-content">
+                    <div class="control-group">
+                        <label>Output Format</label>
+                        <select id="outputFormatSelect">
+                            <option value="source">Same as source</option>
+                            <option value="png">PNG (Lossless)</option>
+                            <option value="jpg" selected>JPG (High Quality)</option>
+                            <option value="webp">WebP</option>
+                            <option value="tiff">TIFF</option>
+                            <option value="mp4">MP4 (H.264)</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Quality / Bitrate</label>
+                        <select id="qualitySelect">
+                            <option>High (CRF 18)</option>
+                            <option selected>Medium (CRF 23)</option>
+                            <option>Low (CRF 28)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-primary" id="enhanceBtn" style="margin-top: 1.5rem;">Enhance & Export</button>
+        </aside>
+    </div>
+
+    <script src="/ui/preferences.js"></script>
+    <script src="/ui/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Manager - openVideoAI</title>
+    <link rel="stylesheet" href="/ui/style.css">
+    <link rel="stylesheet" href="/ui/model-manager.css">
+</head>
+<body>
+    <header>
+        <h1>openVideoAI</h1>
+        <nav style="display: flex; gap: 1rem; align-items: center;">
+            <a href="/" class="nav-link" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem; padding: 0.5rem 1rem; border-radius: 6px; transition: background-color 0.2s, color 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-dark)'; this.style.color='var(--text-main)'" onmouseout="this.style.backgroundColor='transparent'; this.style.color='var(--text-muted)'">
+                Enhance
+            </a>
+            <a href="/settings" class="nav-link" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem; padding: 0.5rem 1rem; border-radius: 6px; transition: background-color 0.2s, color 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-dark)'; this.style.color='var(--text-main)'" onmouseout="this.style.backgroundColor='transparent'; this.style.color='var(--text-muted)'">
+                Settings
+            </a>
+            <span style="font-size: 0.875rem; color: var(--text-muted);">Powered by Open Source Models</span>
+        </nav>
+    </header>
+
+    <div class="layout">
+        <main class="workspace">
+            <div class="model-manager">
+                <div class="manager-header">
+                    <h2>Model Manager</h2>
+                    <div class="status-summary" id="statusSummary">
+                        <span class="stat"><strong id="totalModels">0</strong> Total</span>
+                        <span class="stat"><strong id="downloadedModels">0</strong> Downloaded</span>
+                        <span class="stat"><strong id="availableModels">0</strong> Available</span>
+                    </div>
+                </div>
+
+                <div class="filter-bar">
+                    <input type="text" id="searchInput" placeholder="Search models..." class="search-input">
+                    <select id="statusFilter" class="filter-select">
+                        <option value="all">All Models</option>
+                        <option value="downloaded">Downloaded</option>
+                        <option value="available">Available to Download</option>
+                    </select>
+                    <select id="aiFilter" class="filter-select">
+                        <option value="all">AI + Non-AI (All)</option>
+                        <option value="ai">AI Models</option>
+                        <option value="non-ai">Non-AI (Pure Math)</option>
+                    </select>
+                    <select id="featureFilter" class="filter-select">
+                        <option value="all">All Features</option>
+                        <!-- Options populated dynamically from models.json -->
+                    </select>
+                    <button type="button" id="recommendButton" class="recommend-button rainbow-border">Recommended Models</button>
+                </div>
+
+                <div class="model-grid" id="modelGrid">
+                    <!-- Models will be rendered here -->
+                </div>
+            </div>
+        </main>
+
+        <aside class="sidebar" id="modelDetailSidebar" style="display: none;">
+            <button class="close-sidebar" id="closeSidebar">&times;</button>
+            <div class="model-detail" id="modelDetail">
+                <!-- Model detail will be rendered here -->
+            </div>
+        </aside>
+    </div>
+
+    <!-- Download Progress Modal -->
+    <div class="modal-overlay" id="downloadModal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalModelName">Downloading Model</h3>
+                <button class="modal-close" id="closeDownloadModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-stats">
+                        <span id="progressPercent">0%</span>
+                        <span id="progressSpeed">0 B/s</span>
+                        <span id="progressETA">--:--</span>
+                    </div>
+                    <div class="progress-text" id="progressText">Preparing download...</div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-secondary" id="cancelDownload">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/ui/preferences.js"></script>
+    <script src="/ui/model-manager.js"></script>
+</body>
+</html>

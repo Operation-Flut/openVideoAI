@@ -1,0 +1,20 @@
+# AMD GPU acceleration (OPTIONAL, Windows)
+#
+# Enables DirectML acceleration for AMD (and Intel) GPUs from PyTorch.
+# Only install this if:
+#   1. You are on a Windows machine with an AMD/Intel GPU, AND
+#   2. You do NOT have a CUDA-capable NVIDIA GPU you want to use instead.
+#
+# IMPORTANT: torch-directml pairs with a specific PyTorch release. Installing
+# it replaces your current torch/torchvision with the matching Windows build
+# (the current torch-directml 0.2.5.dev240914 installs torch 2.4.1 +
+# torchvision 0.19.1; Python 3.8-3.12). After installing, restart openVideoAI —
+# the Settings page will then show the "AMD GPU (DirectML)" backend as available.
+#
+# Installation:
+#   pip install -r requirements-amd.txt
+#
+# ROCm/HIP alternative (Linux): install a ROCm build of PyTorch
+# (e.g. via https://pytorch.org/get-started/locally/) - the app detects the
+# "hip" device type automatically.
+torch-directml

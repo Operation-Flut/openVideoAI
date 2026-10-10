@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - openVideoAI</title>
+    <link rel="stylesheet" href="/ui/style.css">
+    <link rel="stylesheet" href="/ui/settings.css">
+</head>
+<body class="settings-page">
+    <header>
+        <h1>openVideoAI</h1>
+        <nav style="display: flex; gap: 1rem; align-items: center;">
+            <a href="/" class="nav-link" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem; padding: 0.5rem 1rem; border-radius: 6px; transition: background-color 0.2s, color 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-dark)'; this.style.color='var(--text-main)'" onmouseout="this.style.backgroundColor='transparent'; this.style.color='var(--text-muted)'">
+                Enhance
+            </a>
+            <a href="/model-manager" class="nav-link" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem; padding: 0.5rem 1rem; border-radius: 6px; transition: background-color 0.2s, color 0.2s;" onmouseover="this.style.backgroundColor='var(--bg-dark)'; this.style.color='var(--text-main)'" onmouseout="this.style.backgroundColor='transparent'; this.style.color='var(--text-muted)'">
+                Manage Models
+            </a>
+            <a href="/settings" class="nav-link" style="color: var(--primary); text-decoration: none; font-size: 0.875rem; padding: 0.5rem 1rem; border-radius: 6px; background-color: rgba(59, 130, 246, 0.1); transition: background-color 0.2s, color 0.2s;">
+                Settings
+            </a>
+            <span style="font-size: 0.875rem; color: var(--text-muted);">Powered by Open Source Models</span>
+        </nav>
+    </header>
+
+    <div class="layout">
+        <main class="workspace">
+            <div class="settings-container">
+                <div class="settings-header">
+                    <h1>Settings</h1>
+                    <p class="settings-subtitle">Configure system resources, processing defaults, models, and appearance</p>
+                </div>
+
+                <p class="settings-save-status" id="settingsSaveStatus" role="status" aria-live="polite"></p>
+
+                <!-- Tab Navigation -->
+                <nav class="settings-tabs" role="tablist" aria-label="Settings categories">
+                    <button class="settings-tab" role="tab" aria-selected="true" aria-controls="tab-performance" data-tab="performance">
+                        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                        </svg>
+                        <span>Performance</span>
+                    </button>
+                    <button class="settings-tab" role="tab" aria-selected="false" aria-controls="tab-processing" data-tab="processing">
+                        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="16 18 22 12 16 6"></polyline>
+                            <polyline points="8 6 2 12 8 18"></polyline>
+                        </svg>
+                        <span>Processing</span>
+                    </button>
+                    <button class="settings-tab" role="tab" aria-selected="false" aria-controls="tab-models" data-tab="models">
+                        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
+                        <span>Models</span>
+                    </button>
+                    <button class="settings-tab" role="tab" aria-selected="false" aria-controls="tab-appearance" data-tab="appearance">
+                        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                        </svg>
+                        <span>Appearance</span>
+                    </button>
+                    <button class="settings-tab" role="tab" aria-selected="false" aria-controls="tab-advanced" data-tab="advanced">
+                        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        </svg>
+                        <span>Advanced</span>
+                    </button>
+                </nav>
+
+                <div class="tab-indicator"></div>
+
+                <!-- Tab Panels -->
+                <div class="tab-panels">
+                    <!-- Performance Tab -->
+                    <div class="tab-panel" id="tab-performance" role="tabpanel" aria-labelledby="tab-performance" data-tab="performance">
+                        <section class="settings-section">
+                            <header class="section-header">
+                                <div class="section-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                    </svg>
+                                </div>
+                                <div class="section-text">
+                                    <h2>System Resources</h2>
+                                    <p class="section-desc">Configure hardware resource allocation for AI processing</p>
+                                </div>
+                            </header>
+
+                            <div class="settings-grid">
+                                <div class="setting-item">
+                                    <label for="maxRamUsage">Max RAM Usage</label>
+                                    <div class="slider-container">
+                                        <input type="range" id="maxRamUsage" min="1" max="100" value="85" step="1">
+                                        <span class="slider-value" id="maxRamUsageValue">85%</span>
+                                    </div>
+                                    <p class="setting-hint" id="maxRamUsageHint">Percentage of system RAM allocated for processing. Current system: <span id="systemRamInfo">detecting...</span></p>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label for="maxVramUsage">Max VRAM Usage</label>
+                                    <div class="slider-container">
+                                        <input type="range" id="maxVramUsage" min="0" max="100" value="95" step="1">
+                                        <span class="slider-value" id="maxVramUsageValue">95%</span>
+                                    </div>
+                                    <p class="setting-hint" id="maxVramUsageHint">Percentage of GPU VRAM allocated for processing. Set to 0 for no limit. <span id="systemVramInfo">detecting...</span></p>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label for="cpuThreads">CPU Threads</label>
+                                    <div class="slider-container">
+                                        <input type="range" id="cpuThreads" min="1" max="100" value="8" step="1">
+                                        <span class="slider-value" id="cpuThreadsValue">8 threads</span>
+                                    </div>
+                                    <p class="setting-hint" id="cpuThreadsHint">Number of CPU threads (of the system maximum) for preprocessing. <span id="systemCpuInfo">detecting...</span></p>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label for="tileSize">Processing Tile Size</label>
+                                    <div class="slider-container">
+                                        <input type="range" id="tileSize" min="128" max="1024" value="400" step="64">
+                                        <span class="slider-value" id="tileSizeValue">400 px</span>
+                                    </div>
+                                    <p class="setting-hint">Tile size for large image processing. Larger = faster but more VRAM. At the default it is auto-tuned to your GPU's VRAM.</p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="settings-section">
+                            <header class="section-header">
+                                <div class="section-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                                        <path d="M8 21h8"></path>
+                                        <path d="M12 17v4"></path>
+                                    </svg>
+                                </div>
+                                <div class="section-text">
+                                    <h2>GPU Acceleration</h2>
+                                    <p class="section-desc">Configure GPU compute backend and device selection</p>
+                                </div>
+                            </header>
+
+                            <div class="setting-item">
+                                <label>Compute Backend</label>
+                                <div class="radio-group" id="computeBackend">
+                                    <label class="radio-option">
+                                        <input type="radio" name="computeBackend" value="auto" checked>
+                                        <span class="radio-label">Auto Detect</span>
+                                        <span class="radio-desc">Automatically select best available backend (CUDA, AMD DirectML/ROCm, Metal, CPU)</span>
+                                    </label>
+                                    <label class="radio-option" data-requires="cuda" id="cudaBackendOption">
+                                        <input type="radio" name="computeBackend" value="cuda">
+                                        <span class="radio-label">CUDA (NVIDIA)</span>
+                                        <span class="radio-desc">Force NVIDIA CUDA acceleration</span>
+                                    </label>
+                                    <label class="radio-option" data-requires="amd" id="amdBackendOption">
+                                        <input type="radio" name="computeBackend" value="amd">
+                                        <span class="radio-label">AMD GPU (DirectML)</span>
+                                        <span class="radio-desc">Force AMD GPU acceleration</span>
+                                    </label>
+                                    <label class="radio-option" data-requires="metal" id="metalBackendOption">
+                                        <input type="radio" name="computeBackend" value="metal">
+                                        <span class="radio-label">Metal (Apple Silicon)</span>
+                                        <span class="radio-desc">Force Apple Metal acceleration</span>
+                                    </label>
+                                    <label class="radio-option">
+                                        <input type="radio" name="computeBackend" value="cpu">
+                                        <span class="radio-label">CPU Only</span>
+                                        <span class="radio-desc">Disable GPU acceleration, use CPU only</span>
+                                    </label>
+                                </div>
+                                <p class="setting-hint" id="gpuBackendHint"></p>
+                            </div>
+
+                            <div class="setting-item">
+                                <label for="gpuDevice">GPU Device</label>
+                                <select id="gpuDevice" disabled>
+                                    <option value="auto">Auto Select</option>
+                                </select>
+                                <p class="setting-hint" id="gpuDeviceHint">Select specific GPU when multiple are available</p>
+                            </div>
+
+                            <div class="setting-item toggle-item">
+                                <div>
+                                    <label>Half Precision (FP16)</label>
+                                    <span class="setting-hint">Use 16-bit precision for faster inference and lower VRAM usage</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="fp16Enabled" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="setting-item toggle-item">
+                                <div>
+                                    <label>TensorRT Optimization</label>
+                                    <span class="setting-hint">Enable TensorRT for faster inference on supported NVIDIA GPUs</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="tensorrtEnabled">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- Processing Tab -->
+                    <div class="tab-panel" id="tab-processing" role="tabpanel" aria-labelledby="tab-processing" data-tab="processing" hidden>
+                        <section class="settings-section">
+                            <header class="section-header">
+                                <div class="section-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="16 18 22 12 16 6"></polyline>
+                                        <polyline points="8 6 2 12 8 18"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="section-text">
+                                    <h2>Processing Defaults</h2>
+                                    <p class="section-desc">Default settings for enhancement operations</p>
+                                </div>
+                            </header>
+
+                            <div class="settings-grid">
+                                <div class="setting-item">
+                                    <label for="defaultUpscale">Default Upscale Factor</label>
+                                    <select id="defaultUpscale">
+                                        <option value="2">2x</option>
+                                        <option value="4" selected>4x</option>
+                                        <option value="8">8x</option>
+                                    </select>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label for="defaultTileSize">Default Tile Size</label>
+                                    <select id="defaultTileSize">
+                                        <option value="256">256 px</option>
+                                        <option value="400" selected>400 px</option>
+                                        <option value="512">512 px</option>
+                                        <option value="768">768 px</option>
+                                    </select>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label for="outputFormat">Default Output Format</label>
+                                    <select id="outputFormat">
+                                        <option value="source">Same as source</option>
+                                        <option value="png">PNG (Lossless)</option>
+                                        <option value="jpg" selected>JPG (High Quality)</option>
+                                        <option value="webp">WebP</option>
+                                        <option value="tiff">TIFF</option>
+                                        <option value="mp4">MP4 (H.264)</option>
+                                    </select>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label for="jpgQuality">JPG Quality</label>
+                                    <div class="slider-container">
+                                        <input type="range" id="jpgQuality" min="50" max="100" value="95" step="1">
+                                        <span class="slider-value" id="jpgQualityValue">95%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- Models Tab -->
+                    <div class="tab-panel" id="tab-models" role="tabpanel" aria-labelledby="tab-models" data-tab="models" hidden>
+                        <section class="settings-section">
+                            <header class="section-header">
+                                <div class="section-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                                    </svg>
+                                </div>
+                                <div class="section-text">
+                                    <h2>Model Management</h2>
+                                    <p class="section-desc">Configure model storage and download behavior</p>
+                                </div>
+                            </header>
+
+                            <div class="setting-item">
+                                <label for="modelDir">Model Storage Directory</label>
+                                <div class="path-input">
+                                    <input type="text" id="modelDir" value="./models" readonly>
+                                    <button class="btn-secondary" id="browseModelDir">Browse...</button>
+                                </div>
+                                <p class="setting-hint">Where downloaded models are stored</p>
+                            </div>
+
+                            <div class="setting-item toggle-item">
+                                <div>
+                                    <label>Auto-download Missing Models</label>
+                                    <span class="setting-hint">Automatically download required models when starting enhancement</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="autoDownloadModels" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="setting-item toggle-item">
+                                <div>
+                                    <label>Verify Model Integrity</label>
+                                    <span class="setting-hint">Verify checksums after download to ensure model integrity</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="verifyModels" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="setting-item toggle-item">
+                                <div>
+                                    <label>Hide Incompatible Models</label>
+                                    <span class="setting-hint">Only show models compatible with this system in the Model Manager</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="hideIncompatibleModels">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="setting-item toggle-item">
+                                <div>
+                                    <label>Prefer AI</label>
+                                    <span class="setting-hint">Favor AI neural-network models over built-in math algorithms in recommendations</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="preferAi" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="setting-actions">
+                                <button class="btn-secondary" id="clearModelCache">Clear Model Cache</button>
+                                <button class="btn-secondary" id="verifyAllModels">Verify All Models</button>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- Appearance Tab -->
+                    <div class="tab-panel" id="tab-appearance" role="tabpanel" aria-labelledby="tab-appearance" data-tab="appearance" hidden>
+                        <section class="settings-section">
+                            <header class="section-header">
+                                <div class="section-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                                    </svg>
+                                </div>
+                                <div class="section-text">
+                                    <h2>Appearance</h2>
+                                    <p class="section-desc">Customize the application look and feel</p>
+                                </div>
+                            </header>
+
+                            <div class="settings-grid">
+                                <div class="setting-item">
+                                    <label for="theme">Theme</label>
+                                    <select id="theme">
+                                        <option value="dark" selected>Dark</option>
+                                        <option value="light">Light</option>
+                                        <option value="system">System</option>
+                                    </select>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label for="accentColor">Accent Color</label>
+                                    <div class="color-picker">
+                                        <input type="color" id="accentColor" value="#3b82f6">
+                                        <span class="color-value">#3b82f6</span>
+                                    </div>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label for="fontSize">UI Font Size</label>
+                                    <select id="fontSize">
+                                        <option value="small">Small (12px)</option>
+                                        <option value="medium" selected>Medium (14px)</option>
+                                        <option value="large">Large (16px)</option>
+                                    </select>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label for="density">UI Density</label>
+                                    <select id="density">
+                                        <option value="compact">Compact</option>
+                                        <option value="comfortable" selected>Comfortable</option>
+                                        <option value="spacious">Spacious</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- Advanced Tab -->
+                    <div class="tab-panel" id="tab-advanced" role="tabpanel" aria-labelledby="tab-advanced" data-tab="advanced" hidden>
+                        <section class="settings-section">
+                            <header class="section-header">
+                                <div class="section-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                    </svg>
+                                </div>
+                                <div class="section-text">
+                                    <h2>Advanced</h2>
+                                    <p class="section-desc">Experimental and debug settings</p>
+                                </div>
+                            </header>
+
+                            <div class="setting-item toggle-item">
+                                <div>
+                                    <label>Enable Debug Logging</label>
+                                    <span class="setting-hint">Output detailed logs for troubleshooting</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="debugLogging">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="setting-item toggle-item">
+                                <div>
+                                    <label>Show Performance Metrics</label>
+                                    <span class="setting-hint">Display FPS, VRAM usage, and processing time in UI</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="showMetrics" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="setting-item toggle-item">
+                                <div>
+                                    <label>Experimental Features</label>
+                                    <span class="setting-hint">Enable access to experimental and unstable features</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="experimentalFeatures">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="setting-actions">
+                                <button class="btn-secondary" id="exportSettings">Export Settings</button>
+                                <button class="btn-secondary" id="importSettings">Import Settings</button>
+                                <button class="btn-danger" id="resetSettings">Reset to Defaults</button>
+                            </div>
+                        </section>
+
+                        <section class="settings-section">
+                            <header class="section-header">
+                                <div class="section-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                                        <path d="M8 21h8"></path>
+                                        <path d="M12 17v4"></path>
+                                    </svg>
+                                </div>
+                                <div class="section-text">
+                                    <h2>System Information</h2>
+                                    <p class="section-desc">Detected hardware capabilities</p>
+                                </div>
+                            </header>
+
+                            <div class="system-info" id="systemInfo">
+                                <div class="info-grid">
+                                    <div class="info-card">
+                                        <h3>CPU</h3>
+                                        <p id="cpuInfo">Detecting...</p>
+                                    </div>
+                                    <div class="info-card">
+                                        <h3>RAM</h3>
+                                        <p id="ramInfo">Detecting...</p>
+                                    </div>
+                                    <div class="info-card">
+                                        <h3>GPU</h3>
+                                        <p id="gpuInfo">Detecting...</p>
+                                    </div>
+                                    <div class="info-card">
+                                        <h3>VRAM</h3>
+                                        <p id="vramInfo">Detecting...</p>
+                                    </div>
+                                    <div class="info-card">
+                                        <h3>OS</h3>
+                                        <p id="osInfo">Detecting...</p>
+                                    </div>
+                                    <div class="info-card">
+                                        <h3>Python</h3>
+                                        <p id="pythonInfo">Detecting...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/ui/preferences.js"></script>
+    <script src="/ui/settings.js"></script>
+</body>
+</html>

@@ -1,0 +1,269 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., v1.0.0). Leave empty to read from src/__init__.py"
+        required: false
+        type: string
+      dry-run:
+        description: "Run the whole build pipeline but skip creating the GitHub release"
+        required: false
+        type: boolean
+        default: false
+      draft:
+        description: "Create the GitHub release as a draft"
+        required: false
+        type: boolean
+        default: false
+      pre-type:
+        description: "Pre-release type (empty = stable release). Sets prerelease automatically."
+        required: false
+        type: choice
+        options:
+          - ""
+          - "alpha"
+          - "beta"
+          - "rc"
+        default: ""
+      hotfix:
+        description: "Hotfix release (auto-increments patch, no changelog)"
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release-info:
+    name: Resolve release version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+      windows_version: ${{ steps.resolve.outputs.windows_version }}
+    steps:
+      - name: Check out repository and tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version and release type
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_TAG: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          PRE_TYPE: ${{ inputs['pre-type'] }}
+          HOTFIX: ${{ inputs.hotfix }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          version_pattern = re.compile(
+              r"^v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)"
+              r"(?P<suffix>-(?:alpha|beta|rc)(?:\.\d+)?)?$"
+          )
+
+          def parse_version(value):
+              match = version_pattern.fullmatch(value.strip())
+              if not match:
+                  raise SystemExit(f"Invalid release version: {value!r}")
+              return match
+
+          event_name = os.environ["EVENT_NAME"]
+          pre_type = os.environ.get("PRE_TYPE", "").strip()
+          hotfix = os.environ.get("HOTFIX", "").lower() == "true"
+
+          if event_name == "push":
+              version = os.environ["EVENT_TAG"]
+          elif hotfix:
+              tags = subprocess.check_output(
+                  ["git", "tag", "--list"], text=True
+              ).splitlines()
+              stable_tags = [
+                  tag for tag in tags
+                  if version_pattern.fullmatch(tag)
+                  and not version_pattern.fullmatch(tag).group("suffix")
+              ]
+              if not stable_tags:
+                  raise SystemExit("Hotfix release requires at least one stable version tag.")
+              latest = max(
+                  stable_tags,
+                  key=lambda tag: tuple(
+                      int(part) for part in version_pattern.fullmatch(tag).groups()[:3]
+                  ),
+              )
+              match = parse_version(latest)
+              version = (
+                  f"{match.group('major')}.{match.group('minor')}."
+                  f"{int(match.group('patch')) + 1}"
+              )
+          else:
+              version = os.environ.get("INPUT_VERSION", "").strip()
+              if not version:
+                  init_source = Path("src/__init__.py").read_text(encoding="utf-8")
+                  match = re.search(
+                      r"""^__version__\s*=\s*["']([^"']+)["']""",
+                      init_source,
+                      re.MULTILINE,
+                  )
+                  if not match:
+                      raise SystemExit("Could not find __version__ in src/__init__.py.")
+                  version = match.group(1)
+
+          match = parse_version(version)
+          base_version = (
+              f"{match.group('major')}.{match.group('minor')}.{match.group('patch')}"
+          )
+          if event_name == "push":
+              version = f"{base_version}{match.group('suffix') or ''}"
+          elif pre_type:
+              version = f"{base_version}-{pre_type}"
+          else:
+              version = base_version
+
+          match = parse_version(version)
+          prerelease = "true" if "-" in version else "false"
+          windows_version = (
+              f"{match.group('major')}.{match.group('minor')}."
+              f"{match.group('patch')}.0"
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"version=v{version}\n")
+              output.write(f"prerelease={prerelease}\n")
+              output.write(f"windows_version={windows_version}\n")
+          print(f"Resolved release version: v{version} (prerelease={prerelease})")
+          PY
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: release-info
+    env:
+      RELEASE_WINDOWS_VERSION: ${{ needs.release-info.outputs.windows_version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux
+            shell: bash
+            build_cmd: |
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+              python -m PyInstaller --onefile --name openVideoAI --add-data "UI:UI" --add-data "models:models" --collect-all src main.py
+              tar -czf openVideoAI-linux-x64.tar.gz -C dist openVideoAI
+          - os: windows-latest
+            name: windows
+            shell: pwsh
+            build_cmd: |
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+              pyinstaller --onefile --name openVideoAI --add-data "UI;UI" --add-data "models;models" --collect-all src main.py
+              Compress-Archive -Path dist\openVideoAI.exe -DestinationPath openVideoAI-windows-x64.zip -Force
+              New-Item -ItemType Directory -Path build -Force | Out-Null
+              @'
+              <?xml version="1.0" encoding="UTF-8"?>
+              <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+                <Product Id="*" Name="openVideoAI" Language="1033" Version="__WINDOWS_VERSION__" Manufacturer="openVideoAI" UpgradeCode="{F32A90F9-E651-4D75-A1B6-717F7F5DAD7E}">
+                  <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
+                  <MediaTemplate />
+                  <Directory Id="TARGETDIR" Name="SourceDir">
+                    <Directory Id="ProgramFilesFolder">
+                      <Directory Id="INSTALLFOLDER" Name="openVideoAI" />
+                    </Directory>
+                  </Directory>
+                  <ComponentGroup Id="ProductComponents">
+                    <Component Id="AppComponent" Directory="INSTALLFOLDER" Guid="{84E48F28-1F68-4CC8-9512-8E7AB32D79B3}">
+                      <File Id="OpenVideoAIExe" Source="dist\openVideoAI.exe" KeyPath="yes" />
+                    </Component>
+                  </ComponentGroup>
+                  <Feature Id="MainFeature" Title="openVideoAI" Level="1">
+                    <ComponentGroupRef Id="ProductComponents" />
+                  </Feature>
+                </Product>
+              </Wix>
+              '@ | Set-Content -Path build\openVideoAI.wxs
+              $wxs = Get-Content -Path build\openVideoAI.wxs -Raw
+              $wxs.Replace("__WINDOWS_VERSION__", $env:RELEASE_WINDOWS_VERSION) | Set-Content -Path build\openVideoAI.wxs
+              & "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin\candle.exe" build\openVideoAI.wxs -out build\openVideoAI.wixobj
+              & "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin\light.exe" build\openVideoAI.wixobj -out openVideoAI-win-x64.msi
+          - os: macos-latest
+            name: macos
+            shell: bash
+            build_cmd: |
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+              python -m PyInstaller --onefile --windowed --name openVideoAI --add-data "UI:UI" --add-data "models:models" --collect-all src main.py
+              hdiutil create -volname "openVideoAI" -srcfolder "dist/openVideoAI.app" -ov -format UDZO "openVideoAI-macos.dmg"
+              ditto -c -k --keepParent "dist/openVideoAI.app" "openVideoAI-macos.zip"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install WiX Toolset
+        if: matrix.name == 'windows'
+        shell: powershell
+        run: |
+          choco install wixtoolset -y --no-progress
+          "$env:ProgramFiles(x86)\WiX Toolset v3.14\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build binary
+        shell: ${{ matrix.shell }}
+        run: ${{ matrix.build_cmd }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openVideoAI-${{ matrix.name }}
+          path: |
+            openVideoAI-*.zip
+            openVideoAI-*.tar.gz
+            openVideoAI-*.dmg
+            openVideoAI-*.msi
+            dist/**
+          if-no-files-found: warn
+
+  release:
+    name: Publish release
+    needs: [release-info, build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Show downloaded artifacts
+        run: ls -R release-artifacts
+
+      - name: Create GitHub release
+        if: github.event_name != 'workflow_dispatch' || inputs['dry-run'] != true
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/**
+          draft: ${{ inputs.draft || false }}
+          prerelease: ${{ needs.release-info.outputs.prerelease }}
+          tag_name: ${{ needs.release-info.outputs.version }}
