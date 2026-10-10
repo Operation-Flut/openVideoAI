@@ -15,6 +15,7 @@ env/
 # Distribution / Packaging
 dist/
 build/
+*.spec
 *.egg-info/
 
 # IDE / Editor
