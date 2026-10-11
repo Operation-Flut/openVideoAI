@@ -217,12 +217,28 @@ jobs:
       - name: Install WiX Toolset 3
         shell: pwsh
         run: |
-          choco install wixtoolset --version 3.14.1 -y --no-progress
-          $wixBin = "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin"
-          if (-not (Test-Path $wixBin)) {
+          # The Windows runner image already ships WiX 3, so pinning an older
+          # version via Chocolatey makes it exit non-zero with "a newer version
+          # is already installed". Only install when WiX is genuinely missing,
+          # and never fail just because Chocolatey had nothing to do.
+          function Get-WixBin {
+            $base = "${env:ProgramFiles(x86)}"
+            $pinned = Join-Path $base "WiX Toolset v3.14\bin"
+            if (Test-Path $pinned) { return $pinned }
             # Chocolatey sometimes installs a slightly different sub-path
-            $wixBin = (Get-ChildItem "${env:ProgramFiles(x86)}\WiX Toolset*\bin" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+            $found = Get-ChildItem "$base\WiX Toolset*\bin" -Directory -ErrorAction SilentlyContinue |
+                     Select-Object -First 1
+            if ($found) { return $found.FullName }
+            return $null
           }
+
+          $wixBin = Get-WixBin
+          if (-not $wixBin) {
+            choco install wixtoolset --version 3.14.1 -y --no-progress
+            $global:LASTEXITCODE = 0
+            $wixBin = Get-WixBin
+          }
+
           if (-not $wixBin) { Write-Error "WiX bin directory not found"; exit 1 }
           Write-Host "WiX bin: $wixBin"
           $wixBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
@@ -394,8 +410,9 @@ jobs:
       - name: Install system dependencies for pywebview
         run: |
           sudo apt-get update -qq
+          # Ubuntu 24.04 renamed the WebKitGTK packages from 4.0 to 4.1
           sudo apt-get install -y --no-install-recommends \
-            libgtk-3-dev libwebkit2gtk-4.0-dev gir1.2-webkit2-4.0
+            libgtk-3-dev libwebkit2gtk-4.1-dev gir1.2-webkit2-4.1
 
       - name: Install Python dependencies
         run: |

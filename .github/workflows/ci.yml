@@ -33,8 +33,37 @@ jobs:
           pip install python-multipart
 
       - name: Run smoke check
+        shell: bash
         run: |
-          python main.py
+          # Headless runners have no GUI backend, so run the API-only mode and
+          # probe the HTTP endpoint instead of opening a desktop window.
+          python main.py --mode server --port 8000 &
+          SERVER_PID=$!
+
+          ready=""
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/api/status >/dev/null 2>&1; then
+              ready="1"
+              break
+            fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              echo "Server process exited before becoming ready" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if [ -z "$ready" ]; then
+            echo "Server did not respond within 60s" >&2
+            kill "$SERVER_PID" 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Health check response:"
+          curl -fsS http://127.0.0.1:8000/api/status
+
+          kill "$SERVER_PID" 2>/dev/null || true
+          wait "$SERVER_PID" 2>/dev/null || true
 
       - name: Compile project
         run: |
