@@ -268,7 +268,6 @@ jobs:
                 InstallScope="perUser"
                 Comments="openVideoAI - Local AI Video Enhancement" />
 
-              <!-- Always upgrade: remove any older installed version first -->
               <MajorUpgrade
                 DowngradeErrorMessage="A newer version of openVideoAI is already installed." />
 
@@ -280,7 +279,22 @@ jobs:
                 <!-- Install to %LocalAppData%\Programs\openVideoAI (perUser) -->
                 <Directory Id="LocalAppDataFolder">
                   <Directory Id="ProgramsFolder" Name="Programs">
-                    <Directory Id="INSTALLFOLDER" Name="openVideoAI" />
+                    <Directory Id="INSTALLFOLDER" Name="openVideoAI">
+                      <Component Id="AppExecutable"
+                                 Guid="{84E48F28-1F68-4CC8-9512-8E7AB32D79B3}">
+                        <File Id="OpenVideoAIExe"
+                              Source="dist\openVideoAI.exe" />
+                        <RegistryValue Root="HKCU"
+                                       Key="Software\openVideoAI"
+                                       Name="Installed"
+                                       Type="integer"
+                                       Value="1"
+                                       KeyPath="yes" />
+                        <RemoveFolder Id="RemoveInstallFolder"
+                                      Directory="INSTALLFOLDER"
+                                      On="uninstall" />
+                      </Component>
+                    </Directory>
                   </Directory>
                 </Directory>
 
@@ -296,29 +310,7 @@ jobs:
 
               <!-- == Components =========================================== -->
               <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
-
-                <!-- Main executable -->
-                <Component Id="AppExecutable"
-                           Guid="{84E48F28-1F68-4CC8-9512-8E7AB32D79B3}">
-                  <File Id="OpenVideoAIExe"
-                        Source="dist\openVideoAI.exe" />
-                  <!-- Per-user install: the component key path must be an HKCU
-                       registry value (ICE38), and every directory created in
-                       the user profile must be scheduled for removal (ICE64). -->
-                  <RemoveFolder Id="CleanupInstallFolder"
-                                Directory="INSTALLFOLDER"
-                                On="uninstall" />
-                  <RemoveFolder Id="CleanupProgramsFolder"
-                                Directory="ProgramsFolder"
-                                On="uninstall" />
-                  <RegistryValue Root="HKCU"
-                                 Key="Software\openVideoAI"
-                                 Name="AppInstalled"
-                                 Type="integer"
-                                 Value="1"
-                                 KeyPath="yes" />
-                </Component>
-
+                <ComponentRef Id="AppExecutable" />
               </ComponentGroup>
 
               <!-- Start Menu shortcut -->
@@ -378,7 +370,7 @@ jobs:
 
             </Product>
           </Wix>
-          '@
+'@
 
           $wxs = $wxs.Replace("__WINDOWS_VERSION__", $env:RELEASE_WINDOWS_VERSION)
           $wxs | Set-Content -Path build\openVideoAI.wxs -Encoding UTF8
