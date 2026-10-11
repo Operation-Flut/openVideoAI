@@ -40,9 +40,9 @@ permissions:
   contents: write
 
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────────
+  # =============================================================================
   # Resolve the release version from inputs / tags / src/__init__.py
-  # ─────────────────────────────────────────────────────────────────────────────
+  # =============================================================================
   release-info:
     name: Resolve release version
     runs-on: ubuntu-latest
@@ -147,9 +147,9 @@ jobs:
           print(f"Resolved release version: v{version} (prerelease={prerelease})")
           PY
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Windows build – PyInstaller exe + WiX MSI installer
-  # ─────────────────────────────────────────────────────────────────────────────
+  # =============================================================================
+  # Windows build - PyInstaller exe + WiX MSI installer
+  # =============================================================================
   build-windows:
     name: Build Windows
     needs: release-info
@@ -201,7 +201,7 @@ jobs:
         shell: pwsh
         run: |
           if (-not (Test-Path "dist\openVideoAI.exe")) {
-            Write-Error "dist\openVideoAI.exe not found – PyInstaller build failed"
+            Write-Error "dist\openVideoAI.exe not found - PyInstaller build failed"
             exit 1
           }
           $size = (Get-Item "dist\openVideoAI.exe").Length / 1MB
@@ -266,7 +266,7 @@ jobs:
                 InstallerVersion="500"
                 Compressed="yes"
                 InstallScope="perUser"
-                Comments="openVideoAI – Local AI Video Enhancement" />
+                Comments="openVideoAI - Local AI Video Enhancement" />
 
               <!-- Always upgrade: remove any older installed version first -->
               <MajorUpgrade
@@ -274,7 +274,7 @@ jobs:
 
               <MediaTemplate EmbedCab="yes" />
 
-              <!-- ── Directory layout ────────────────────────────────────── -->
+              <!-- == Directory layout ====================================== -->
               <Directory Id="TARGETDIR" Name="SourceDir">
 
                 <!-- Install to %LocalAppData%\Programs\openVideoAI (perUser) -->
@@ -294,7 +294,7 @@ jobs:
 
               </Directory>
 
-              <!-- ── Components ─────────────────────────────────────────── -->
+              <!-- == Components =========================================== -->
               <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
 
                 <!-- Main executable -->
@@ -355,7 +355,7 @@ jobs:
               <Property Id="ARPPRODUCTICON" Value="AppIcon" />
               <Property Id="ARPHELPLINK" Value="https://github.com/openVideoAI/openVideoAI" />
 
-              <!-- ── Features ───────────────────────────────────────────── -->
+              <!-- == Features ============================================= -->
               <Feature Id="MainFeature" Title="openVideoAI" Level="1">
                 <ComponentGroupRef Id="ProductComponents" />
                 <ComponentRef Id="StartMenuShortcut" />
@@ -389,9 +389,9 @@ jobs:
             openVideoAI-windows-x64.msi
             openVideoAI-windows-x64-portable.zip
 
-  # ─────────────────────────────────────────────────────────────────────────────
+  # =============================================================================
   # Linux build
-  # ─────────────────────────────────────────────────────────────────────────────
+  # =============================================================================
   build-linux:
     name: Build Linux
     needs: release-info
@@ -446,9 +446,9 @@ jobs:
           name: openVideoAI-linux
           path: openVideoAI-linux-x64.tar.gz
 
-  # ─────────────────────────────────────────────────────────────────────────────
+  # =============================================================================
   # macOS build
-  # ─────────────────────────────────────────────────────────────────────────────
+  # =============================================================================
   build-macos:
     name: Build macOS
     needs: release-info
@@ -505,9 +505,9 @@ jobs:
             openVideoAI-macos.dmg
             openVideoAI-macos.zip
 
-  # ─────────────────────────────────────────────────────────────────────────────
+  # =============================================================================
   # Publish GitHub release
-  # ─────────────────────────────────────────────────────────────────────────────
+  # =============================================================================
   release:
     name: Publish release
     needs: [release-info, build-windows, build-linux, build-macos]
