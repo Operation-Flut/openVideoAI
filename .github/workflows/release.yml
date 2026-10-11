@@ -446,11 +446,21 @@ jobs:
       - name: Package tarball
         run: tar -czf openVideoAI-linux-x64.tar.gz -C dist openVideoAI
 
+      - name: Split tarball for GitHub release limits
+        run: |
+          # GitHub Releases reject any single asset >= 2 GiB (2147483648 bytes).
+          # The Linux bundle carries the CUDA PyTorch runtime (~2.9 GiB), so split
+          # it into sub-2-GiB parts. Reassemble before extracting with:
+          #   cat openVideoAI-linux-x64.tar.gz.part-* > openVideoAI-linux-x64.tar.gz
+          #   tar -xzf openVideoAI-linux-x64.tar.gz
+          split -b 1900M openVideoAI-linux-x64.tar.gz openVideoAI-linux-x64.tar.gz.part-
+          ls -l openVideoAI-linux-x64.tar.gz.part-*
+
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v7
         with:
           name: openVideoAI-linux
-          path: openVideoAI-linux-x64.tar.gz
+          path: openVideoAI-linux-x64.tar.gz.part-*
 
   # =============================================================================
   # macOS build
@@ -523,6 +533,19 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          # Full history and tags are needed to diff against the previous release.
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install OpenCode CLI (best effort)
+        # The generator falls back to Mistral when OpenCode is unavailable.
+        continue-on-error: true
+        run: npm install --global @opencode/cli
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v8
@@ -533,6 +556,24 @@ jobs:
       - name: List downloaded artifacts
         run: ls -Rl release-artifacts
 
+      - name: Generate release notes
+        env:
+          # Primary provider: OpenCode. Set the OPENCODE_MODEL repository
+          # variable (e.g. "anthropic/claude-sonnet-4-5") together with the
+          # matching provider key as a secret. Unset keys are simply empty.
+          OPENCODE_MODEL: ${{ vars.OPENCODE_MODEL }}
+          OPENCODE_RUN_ARGS: ${{ vars.OPENCODE_RUN_ARGS }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # Fallback provider: Mistral.
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
+        run: |
+          python scripts/generate_release_notes.py \
+            --version "${{ needs.release-info.outputs.version }}" \
+            --output RELEASE_NOTES.md
+
       - name: Create GitHub release
         if: github.event_name != 'workflow_dispatch' || inputs['dry-run'] != true
         uses: softprops/action-gh-release@v3
@@ -540,9 +581,11 @@ jobs:
           files: |
             release-artifacts/openVideoAI-windows-x64.msi
             release-artifacts/openVideoAI-windows-x64-portable.zip
-            release-artifacts/openVideoAI-linux-x64.tar.gz
             release-artifacts/openVideoAI-macos.dmg
             release-artifacts/openVideoAI-macos.zip
           draft: ${{ inputs.draft || false }}
           prerelease: ${{ needs.release-info.outputs.prerelease }}
           tag_name: ${{ needs.release-info.outputs.version }}
+          # Exclude very large artifacts that exceed GitHub release asset size limit (2GB)
+          # Linux onefile build can be large due to bundled dependencies
+          body_path: RELEASE_NOTES.md
