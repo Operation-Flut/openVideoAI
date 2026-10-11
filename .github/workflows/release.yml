@@ -558,14 +558,15 @@ jobs:
 
       - name: Generate release notes
         env:
-          # Primary provider: OpenCode. Set the OPENCODE_MODEL repository
-          # variable (e.g. "anthropic/claude-sonnet-4-5") together with the
-          # matching provider key as a secret. Unset keys are simply empty.
+          # Primary provider: the OpenCode CLI, walking a waterfall of OpenCode
+          # Zen free models (exo-free -> big-pickle -> nemotron -> space-bunny
+          # -> muse-spark). Authenticate with the OPENCODE_API_KEY secret.
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          # Optional overrides: a comma-separated model chain, a single model,
+          # or extra `opencode run` flags.
+          OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS }}
           OPENCODE_MODEL: ${{ vars.OPENCODE_MODEL }}
           OPENCODE_RUN_ARGS: ${{ vars.OPENCODE_RUN_ARGS }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           # Fallback provider: Mistral.
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
