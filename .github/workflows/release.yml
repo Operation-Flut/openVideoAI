@@ -301,8 +301,22 @@ jobs:
                 <Component Id="AppExecutable"
                            Guid="{84E48F28-1F68-4CC8-9512-8E7AB32D79B3}">
                   <File Id="OpenVideoAIExe"
-                        Source="dist\openVideoAI.exe"
-                        KeyPath="yes" />
+                        Source="dist\openVideoAI.exe" />
+                  <!-- Per-user install: the component key path must be an HKCU
+                       registry value (ICE38), and every directory created in
+                       the user profile must be scheduled for removal (ICE64). -->
+                  <RemoveFolder Id="CleanupInstallFolder"
+                                Directory="INSTALLFOLDER"
+                                On="uninstall" />
+                  <RemoveFolder Id="CleanupProgramsFolder"
+                                Directory="ProgramsFolder"
+                                On="uninstall" />
+                  <RegistryValue Root="HKCU"
+                                 Key="Software\openVideoAI"
+                                 Name="AppInstalled"
+                                 Type="integer"
+                                 Value="1"
+                                 KeyPath="yes" />
                 </Component>
 
               </ComponentGroup>
