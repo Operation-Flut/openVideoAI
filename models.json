@@ -22,7 +22,7 @@
         {
             "name": "CodeFormer",
             "description": "A robust face restoration algorithm for old photos and AI-generated faces. It uses a codebook-based approach to reconstruct heavily degraded, blurred, or pixelated faces with high fidelity.",
-            "size": "~150MB",
+            "size": "~360MB",
             "weight": "Medium",
             "url": "https://github.com/sczhou/CodeFormer",
             "downloadUrl": "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth",
@@ -39,17 +39,55 @@
             "canRunOnCpu": false
         },
         {
-            "name": "NAFNet",
-            "description": "A lightning-fast image restoration model that uses a Nonlinear Activation Free Network. It is highly optimized for removing camera shake, motion blur, and out-of-focus blur with minimal computational overhead.",
-            "size": "~15MB",
+            "name": "NAFNet-SIDD",
+            "description": "NAFNet trained on the SIDD dataset to remove sensor noise from images while preserving fine details.",
+            "size": "~464MB",
             "weight": "Ultra-Lightweight",
             "url": "https://github.com/megvii-research/NAFNet",
-            "downloadUrl": "https://huggingface.co/nyanko7/nafnet-models/resolve/main/NAFNet-GoPro-width64.pth",
-            "descriptionShort": "Blazing fast image deblurring and sharpness enhancement.",
+            "downloadUrl": "https://huggingface.co/nyanko7/nafnet-models/resolve/main/NAFNet-SIDD-width64.pth",
+            "descriptionShort": "Denoises images while preserving fine details.",
+            "features": [
+                {
+                    "name": "Denoise",
+                    "description": "Removes sensor noise while preserving edges and fine image details."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "NAFNet-REDS",
+            "description": "NAFNet trained on the REDS dataset for general video restoration, including blur and complex video artifacts.",
+            "size": "~260MB",
+            "weight": "Ultra-Lightweight",
+            "url": "https://github.com/megvii-research/NAFNet",
+            "downloadUrl": "https://huggingface.co/nyanko7/nafnet-models/resolve/main/NAFNet-REDS-width64.pth",
+            "descriptionShort": "General video restoration for blur and complex artifacts.",
             "features": [
                 {
                     "name": "Sharpen / Deblur",
-                    "description": "Removes motion blur, camera shake, and out-of-focus softness to restore crisp edges."
+                    "description": "Restores video affected by general blur and complex visual artifacts."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "NAFNet-GoPro",
+            "description": "NAFNet trained on the GoPro dataset to remove motion blur caused by camera shake and fast movement.",
+            "size": "~272MB",
+            "weight": "Ultra-Lightweight",
+            "url": "https://github.com/megvii-research/NAFNet",
+            "downloadUrl": "https://huggingface.co/nyanko7/nafnet-models/resolve/main/NAFNet-GoPro-width64.pth",
+            "descriptionShort": "Deblurs images affected by camera shake and fast motion.",
+            "features": [
+                {
+                    "name": "Sharpen / Deblur",
+                    "description": "Removes motion blur caused by camera shake and fast movement."
                 }
             ],
             "isAi": true,
@@ -447,7 +485,7 @@
         {
             "name": "RealBasicVSR",
             "description": "A powerful multi-frame video enhancement model. It simultaneously handles heavy shadow noise, compression artifacts, and temporal flicker common in poorly shot LOG footage, reconstructing clean high-frequency details across frames.",
-            "size": "~120MB",
+            "size": "~200MB",
             "weight": "Medium",
             "url": "https://github.com/ckkelvinchan/RealBasicVSR",
             "downloadUrl": "https://huggingface.co/akhaliq/RealBasicVSR_x4/resolve/main/RealBasicVSR_x4.pth",
@@ -497,10 +535,11 @@
         {
             "name": "NLUT",
             "description": "Neural-based 3D Lookup Table generator. It analyzes a reference image, extracts its cinematic look, and generates an Image-Adaptive 3D LUT to apply the exact color grading to your target image in real-time.",
-            "size": "~45MB",
+            "size": "~225MB",
             "weight": "Lightweight",
             "url": "https://github.com/semchan/NLUT",
-            "downloadUrl": null,
+            "downloadUrl": "https://drive.usercontent.google.com/download?id=1tVO0GFa5GeuuXmvPHq9iYpfwSObrUMiv&export=download&confirm=t",
+            "filename": "336999_style_lut.pth",
             "descriptionShort": "Extracts colors from a reference image and creates a fast 3D LUT.",
             "features": [
                 {
@@ -509,17 +548,18 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true
         },
         {
             "name": "Deep Color Transfer",
             "description": "Uses deep learning and histogram analogies to perform photorealistic color transfer between images. It preserves semantic structures, ensuring skies match skies and skin matches skin.",
-            "size": "~110MB",
+            "size": "~153MB",
             "weight": "Medium",
             "url": "https://github.com/codeslake/Color_Transfer_Histogram_Analogy",
-            "downloadUrl": null,
+            "downloadUrl": "https://www.dropbox.com/s/lkwo9xg168e650i/checkpoints.zip?dl=1",
+            "filename": "latest_net_G_A.pth",
             "descriptionShort": "Advanced, semantically-aware color transfer for complex lighting.",
             "features": [
                 {
@@ -528,9 +568,34 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true
+        },
+        {
+            "name": "WCT2",
+            "description": "Whitening & Coloring Transform. A small neural network that reproduces the color grade and tone of a reference image by aligning whitened/colored wavelet feature statistics. Runs on the CPU.",
+            "size": "~40MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/clovaai/WCT2",
+            "downloadUrl": "https://raw.githubusercontent.com/clovaai/WCT2/master/model_checkpoints/wave_encoder_cat5_l4.pth",
+            "additionalDownloads": [
+                {
+                    "url": "https://raw.githubusercontent.com/clovaai/WCT2/master/model_checkpoints/wave_decoder_cat5_l4.pth",
+                    "filename": "wave_decoder_cat5_l4.pth"
+                }
+            ],
+            "descriptionShort": "Neural color matching that reproduces the reference's look.",
+            "features": [
+                {
+                    "name": "Match Color",
+                    "description": "Transfers color grading, contrast, and style from a reference image to target media."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
         },
         {
             "name": "Reinhard Transfer",
@@ -573,6 +638,349 @@
                     "description": "Creates slow-motion effects by interpolating frames in video sequences."
                 }
             ]
+        },
+        {
+            "name": "BSRGAN",
+            "description": "Blind super-resolution GAN trained with a practical degradation model (downsampling, Gaussian blur, noise, JPEG compression). Restores heavily degraded low-resolution images to sharp 4x output with an RRDB generator, including blur types that plain deblurring nets cannot reconstruct.",
+            "size": "~67MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/cszn/BSRGAN",
+            "downloadUrl": "https://github.com/cszn/KAIR/releases/download/v1.0/BSRGAN.pth",
+            "descriptionShort": "Blind restoration + 4x upscaling that handles blur, noise, and JPEG artifacts.",
+            "features": [
+                {
+                    "name": "Upscale",
+                    "description": "Reconstructs sharp high-resolution detail from images degraded by blur, noise, and compression."
+                },
+                {
+                    "name": "Multipurpose Restoration",
+                    "description": "Single-pass cleanup of combined blur, sensor noise, and JPEG compression artifacts."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "GFPGAN",
+            "description": "Practical face restoration GAN trained on FFHQ. Reconstructs facial details from heavily blurred, pixelated, or compressed face crops; the v1.4 checkpoint provides richer detail and better identity preservation.",
+            "size": "~333MB",
+            "weight": "Medium",
+            "url": "https://github.com/TencentARC/GFPGAN",
+            "downloadUrl": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/GFPGANv1.4.pth",
+            "descriptionShort": "Face-focused restoration for blurry, noisy, or low-resolution faces.",
+            "features": [
+                {
+                    "name": "Face Recovery",
+                    "description": "Reconstructs faces from heavy blur or pixelation, restoring sharp facial features."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "RestoreFormer",
+            "description": "Transformer-based face restoration (VQGAN encoder + multi-head attention decoder) that preserves subtle facial features and natural skin textures. Original model released with GFPGAN.",
+            "size": "~443MB",
+            "weight": "Heavy",
+            "url": "https://github.com/wzhouxiff/RestoreFormer",
+            "downloadUrl": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/RestoreFormer.pth",
+            "descriptionShort": "Face restoration with a transformer decoder for fine detail preservation.",
+            "features": [
+                {
+                    "name": "Face Recovery",
+                    "description": "Retains subtle facial features and landmarks with natural, transformer-based textures."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "RestoreFormer++",
+            "description": "Upgraded RestoreFormer with a large VQGAN backbone and attention reconstruction for finer skin texture and identity retention. The v1.0.0 release ships the checkpoint as a Git LFS asset on GitHub.",
+            "size": "~458MB",
+            "weight": "Heavy",
+            "url": "https://github.com/wzhouxiff/RestoreFormerPlusPlus",
+            "downloadUrl": "https://github.com/wzhouxiff/RestoreFormerPlusPlus/releases/download/v1.0.0/RestoreFormer++.ckpt",
+            "descriptionShort": "VQGAN + full-attention face restoration with finer skin texture.",
+            "features": [
+                {
+                    "name": "Face Recovery",
+                    "description": "VQGAN backbone with cross-attention for higher structural fidelity and skin detail."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "DifFace",
+            "description": "Diffusion-based blind face restoration (diffused error contraction). Bridges the degraded image to a pretrained diffusion prior, avoiding hallucinated features and keeping identity likeness; released as a Diffusers pipeline checkpoint.",
+            "size": "~639MB",
+            "weight": "Heavy",
+            "url": "https://github.com/czczup/DifFace",
+            "downloadUrl": "https://huggingface.co/OAOA/DifFace/resolve/main/diffusion_pytorch_model.bin",
+            "descriptionShort": "Diffusion face restoration focused on identity preservation.",
+            "features": [
+                {
+                    "name": "Face Recovery",
+                    "description": "Contracts the diffused error before connecting to a pretrained diffusion prior."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "Restormer",
+            "description": "Efficient Transformer for high-resolution image restoration. This entry is the single-image defocus-deblurring checkpoint - the closest match among classical deblurring nets for out-of-focus / soft-lens blur. It reduces blur but cannot recover facial identity from severe blur.",
+            "size": "~100MB",
+            "weight": "Medium",
+            "url": "https://github.com/swz30/Restormer",
+            "downloadUrl": "https://github.com/swz30/Restormer/releases/download/v1.0/single_image_defocus_deblurring.pth",
+            "descriptionShort": "Transformer defocus-deblurring for out-of-focus images.",
+            "features": [
+                {
+                    "name": "Sharpen / Deblur",
+                    "description": "Removes defocus/out-of-focus blur using a transformer-based restoration net."
+                },
+                {
+                    "name": "Focus Fix",
+                    "description": "Restores edge sharpness and fine detail in soft or out-of-focus footage."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "DeblurGAN-v2",
+            "description": "GAN-based single-image motion deblurring with an FPN backbone (Inception-ResNet-v2 / MobileNet variants). Trained on motion blur like NAFNet, so defocus or compression blur yields limited gains. Official weights (fpn_inception.h5) are hosted on Google Drive - download manually and place the file into models/.",
+            "size": "~157MB",
+            "weight": "Medium",
+            "url": "https://github.com/VITA-Group/DeblurGANv2",
+            "downloadUrl": "https://huggingface.co/TJ-27/Deblur-GAN-V2/resolve/main/deblurgan_generator.keras?download=true",
+            "descriptionShort": "GAN motion deblurring (FPN backbone); weights require manual download.",
+            "features": [
+                {
+                    "name": "Sharpen / Deblur",
+                    "description": "Removes motion blur caused by camera shake and fast movement."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "MPRNet",
+            "description": "Multi-stage progressive restoration CNN (CVPR 2021) with a GoPro deblurring checkpoint. Like NAFNet it focuses on motion blur; it also has denoising checkpoints. The official weights are hosted on Google Drive - download manually into models/ (model_deblurring.pth).",
+            "size": "~57MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/swz30/MPRNet",
+            "downloadUrl": "https://huggingface.co/brill1234/mprnet-esrgan-4x/resolve/main/weights/best_mprnet_finetuned.pth",
+            "descriptionShort": "Multi-stage CNN deblurring (GoPro); weights require manual download.",
+            "features": [
+                {
+                    "name": "Sharpen / Deblur",
+                    "description": "Removes motion blur and restores sharp detail via progressive multi-stage CNN stages."
+                },
+                {
+                    "name": "Denoise",
+                    "description": "Removes sensor noise while preserving edges and fine image details."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "FFTformer",
+            "description": "Frequency-domain transformer for high-quality image deblurring, trained on the GoPro dataset. Motion-blur oriented like NAFNet, so defocus/compression blur shows the same limitations.",
+            "size": "~66MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/kkkls/fftformer",
+            "downloadUrl": "https://github.com/kkkls/FFTformer/releases/download/pretrain_model/fftformer_GoPro.pth",
+            "descriptionShort": "Frequency-domain transformer for motion deblurring.",
+            "features": [
+                {
+                    "name": "Sharpen / Deblur",
+                    "description": "Restores sharp detail from motion-blurred images using a frequency-domain transformer."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "DiffBIR",
+            "description": "Diffusion-based general blind image restoration (IRControlNet + SwinIR stage-1). Generates plausible high-frequency detail for blur, noise, and compression. Restored content is realistically hallucinated, not a pixel-perfect recovery. This entry is the single-file general_full_v1.ckpt.",
+            "size": "~6.4GB",
+            "weight": "Heavyweight",
+            "url": "https://github.com/XPixelGroup/DiffBIR",
+            "downloadUrl": "https://huggingface.co/lxq007/DiffBIR/resolve/main/general_full_v1.ckpt",
+            "descriptionShort": "Diffusion prior for high-quality blind restoration (GPU with 12GB+ VRAM).",
+            "features": [
+                {
+                    "name": "Multipurpose Restoration",
+                    "description": "Generates plausible detail for images degraded by heavy blur, noise, and compression."
+                },
+                {
+                    "name": "Upscale",
+                    "description": "Increases resolution while synthesizing realistic high-frequency detail."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "SUPIR",
+            "description": "Scaled-up generative prior (SDXL) for photo-realistic blind restoration and upscaling. Among the strongest restorers, but wants roughly 24GB or more of VRAM. v0Q checkpoint (~5.3GB) mirrored on Hugging Face.",
+            "size": "~5.3GB",
+            "weight": "Heavyweight",
+            "url": "https://github.com/Fanghua-Yu/SUPIR",
+            "downloadUrl": "https://huggingface.co/camenduru/SUPIR/resolve/main/SUPIR-v0Q.ckpt",
+            "descriptionShort": "SDXL-based generative restoration for photo-realistic results (needs ~24GB VRAM).",
+            "features": [
+                {
+                    "name": "Multipurpose Restoration",
+                    "description": "Photo-realistic restoration of blur, noise, and compression artifacts with an SDXL prior."
+                },
+                {
+                    "name": "Upscale",
+                    "description": "High-quality upscaling with generative detail synthesis."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "SeeSR",
+            "description": "Semantics-aware (caption-guidance) diffusion super-resolution. Prior-guided restoration that tends to produce more faithful detail. Requires the SD2.1-base model in addition to the uploaded weights.",
+            "size": "~4.5GB",
+            "weight": "Heavyweight",
+            "url": "https://github.com/cswry/SeeSR",
+            "downloadUrl": "https://huggingface.co/cswry/SeeSR/resolve/main/seesr/unet/diffusion_pytorch_model.safetensors",
+            "descriptionShort": "Semantics-aware diffusion super-resolution with caption guidance.",
+            "features": [
+                {
+                    "name": "Upscale",
+                    "description": "Semantics-guided upscaling that synthesizes detailed textures matching image content."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "StableSR",
+            "description": "Diffusion-based real-world super-resolution with a time-aware encoder (IJCV 2024). Restores realistic detail while preserving structure. Pairs with the VQGAN codebook (vqgan_cfw_00011.ckpt) for feature encoding.",
+            "size": "~6.5GB",
+            "weight": "Heavyweight",
+            "url": "https://github.com/IceClear/StableSR",
+            "downloadUrl": "https://huggingface.co/Iceclear/StableSR/resolve/main/stablesr_000117.ckpt",
+            "descriptionShort": "Diffusion super-resolution with time-aware encoding for realistic detail.",
+            "features": [
+                {
+                    "name": "Upscale",
+                    "description": "Real-world super-resolution restoring realistic high-frequency detail via a diffusion prior."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "CCSR",
+            "description": "Controllable diffusion super-resolution with user-tunable structure/texture balance. Restores detail while keeping structure stable. Weights mirrored on Hugging Face (real-world_ccsr.ckpt).",
+            "size": "~7.3GB",
+            "weight": "Heavyweight",
+            "url": "https://github.com/csslc/CCSR",
+            "downloadUrl": "https://huggingface.co/benjamin-paine/ccsr/resolve/main/real-world_ccsr.ckpt",
+            "descriptionShort": "Controllable diffusion super-resolution with structure/texture balance.",
+            "features": [
+                {
+                    "name": "Upscale",
+                    "description": "Diffusion upscaling with adjustable structure/texture trade-off."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "OSEDiff",
+            "description": "One-step effective diffusion network for real-world super-resolution (NeurIPS 2024). Much faster than multi-step diffusion restorers while keeping diffusion-quality detail. Official weights are distributed via Google Drive - download manually.",
+            "size": "~1.3GB",
+            "weight": "Heavyweight",
+            "url": "https://github.com/cswry/OSEDiff",
+            "downloadUrl": null,
+            "descriptionShort": "One-step diffusion super-resolution (fast, NeurIPS 2024); weights via manual download.",
+            "features": [
+                {
+                    "name": "Upscale",
+                    "description": "One-step diffusion upscaling producing sharp, realistic detail at reduced inference cost."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": false
+        },
+        {
+            "name": "TSRN-RTVD",
+            "description": "Real-time video deblurring network (Temporal Spatial Residual Network) trained on the RTVD dataset. Uses short temporal context, so it removes camera-shake blur well on moving footage. Runs via the official tsrn-rtvd package (pip install git+https://github.com/msu-video-group/tsrn-rtvd) with a streaming reset/process_next API; this entry is the main fine-tuned checkpoint (tsrnn_bt1_exact_ft.pth).",
+            "size": "~57MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/msu-video-group/tsrn-rtvd",
+            "downloadUrl": "https://huggingface.co/egorchistov/deblurring-tsrn-rtvd/resolve/main/checkpoints/tsrnn_bt1_exact_ft.pth",
+            "descriptionShort": "Real-time video deblurring (RTVD); streaming API via the tsrn-rtvd package.",
+            "features": [
+                {
+                    "name": "Sharpen / Deblur",
+                    "description": "Removes motion and shake blur from video streams in real time using temporal context."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
+        },
+        {
+            "name": "OpenCV NAFNet (ONNX)",
+            "description": "NAFNet GoPro deblurring weights exported to ONNX by the OpenCV model zoo (deblurring_nafnet_2025may). Runs through OpenCV 5 / cv2.dnn with the official demo (demo.py, demo.cpp) - it is NOT loadable by the app's PyTorch sharpen pipeline. For in-app NAFNet deblurring use the NAFNet-GoPro weights from this catalog.",
+            "size": "~92MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/opencv/opencv_zoo",
+            "downloadUrl": "https://huggingface.co/opencv/deblurring_nafnet/resolve/main/deblurring_nafnet_2025may.onnx",
+            "descriptionShort": "NAFNet GoPro deblurring as ONNX for OpenCV / cv2.dnn.",
+            "features": [
+                {
+                    "name": "Sharpen / Deblur",
+                    "description": "Motion deblurring with NAFNet weights exported to ONNX for the OpenCV DNN module."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true
         }
     ],
     "features": [
@@ -630,7 +1038,7 @@
         },
         {
             "name": "Log Restoration",
-            "description": "Transforms flat, underexposed, or noisy LOG video footage (S-Log, C-Log, D-Log) into crisp, high-contrast, color-corrected Rec.709 footage using AI tone mapping and shadow denoising."
+            "description": "Transforms flat, underexposed, crappy, or noisy LOG video footage (S-Log, C-Log, D-Log) into crisp, high-contrast, color-corrected Rec.709 footage using AI tone mapping and shadow denoising."
         },
         {
             "name": "SDR to HDR",
@@ -639,13 +1047,21 @@
         {
             "name": "Focus Fix",
             "description": "Corrects out-of-focus or soft footage by enhancing edge sharpness and restoring fine details using multi-frame analysis."
+        },
+        {
+            "name": "Overexposure & Contrast Fix",
+            "description": "Corrects overexposed highlights, crushed shadows, and contrast imbalances by dynamically remapping the tone curve and restoring lost detail."
+        },
+        {
+            "name": "Flat Color Profile",
+            "description": "Applies a flat, regularized color profile to correct clips to a more neutral color balance for fixing over/underexposure, warmth issues, and color spill as well as recovering all color channels to a consistent, balanced look. using ai"
         }
     ],
     "modules": [
         {
             "module": "Log_Rescue_and_Restoration",
             "display_name": "LOG Footage Enhancer & Neural Color Grade",
-            "description": "Transforms flat, underexposed, or noisy LOG footage into clear, high-dynamic-range Rec.709 video using AI-driven tone mapping, neural LUTs, and temporal denoising.",
+            "description": "Transforms flat, underexposed, crappy, or noisy LOG footage into clear, high-dynamic-range Rec.709 video using AI-driven tone mapping, neural LUTs, and temporal denoising.",
             "processing_pipeline": {
                 "step_1": {
                     "process": "Temporal Denoising",
@@ -708,6 +1124,54 @@
                         "HDR10"
                     ],
                     "default": "Rec.709"
+                }
+            }
+        },
+        {
+            "module": "Flat_Color_Profile_Correction",
+            "display_name": "Flat Color Profile Corrector",
+            "description": "Regularizes the color profile of clips to fix over/underexposure, contrast issues, warmth issues, and color spill. Applies a flat, neutral color grading to bring clips to a consistent, balanced look.",
+            "processing_pipeline": {
+                "step_1": {
+                    "process": "Color Balance Correction",
+                    "model": "Gray World White Balance",
+                    "purpose": "Balances color channels using the Gray World assumption to neutralize warmth and color spill issues."
+                },
+                "step_2": {
+                    "process": "Tone Curve Flattening",
+                    "model": "Gamma Correction + CLAHE",
+                    "purpose": "Flattens the tone curve to reduce over/underexposure and creates a regularized color profile."
+                },
+                "step_3": {
+                    "process": "Color Saturation Normalization",
+                    "model": "HSV Saturation Adjustment",
+                    "purpose": "Normalizes color saturation to create a consistent, flat color profile."
+                }
+            },
+            "configuration_parameters": {
+                "flatness": {
+                    "type": "float",
+                    "range": [
+                        0.0,
+                        1.0
+                    ],
+                    "default": 0.5
+                },
+                "warmth_correction": {
+                    "type": "float",
+                    "range": [
+                        0.0,
+                        1.0
+                    ],
+                    "default": 0.7
+                },
+                "color_spill_reduction": {
+                    "type": "float",
+                    "range": [
+                        0.0,
+                        1.0
+                    ],
+                    "default": 0.5
                 }
             }
         }
