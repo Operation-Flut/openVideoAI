@@ -304,16 +304,43 @@ jobs:
           $wxs = $wxs.Replace("__WINDOWS_VERSION__", $env:RELEASE_WINDOWS_VERSION)
           $wxs | Set-Content -Path build\openVideoAI.wxs -Encoding UTF8
 
+      - name: Harvest application files (heat)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path build\wixobj -Force | Out-Null
+          # Harvest the entire PyInstaller onedir output into a component group.
+          # A single WiX <File> element installs one file only, so directory
+          # payloads (_internal, UI, assets, ...) must be harvested like this.
+          heat.exe dir "dist\openVideoAI" `
+            -cg AppFiles `
+            -gg -g1 `
+            -srd `
+            -dr INSTALLFOLDER `
+            -var var.AppSourceDir `
+            -out build\AppFiles.wxs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Compile WiX source (candle)
         shell: pwsh
         run: |
-          candle.exe build\openVideoAI.wxs -out build\openVideoAI.wixobj
+          # Use an absolute source root so the harvested Source paths resolve
+          # regardless of candle's working directory.
+          $appDir = (Resolve-Path "dist\openVideoAI").Path
+          candle.exe `
+            -dAppSourceDir="$appDir" `
+            -out build\wixobj `
+            build\openVideoAI.wxs build\AppFiles.wxs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Link WiX object (light)
         shell: pwsh
         run: |
-          light.exe build\openVideoAI.wixobj -out openVideoAI-windows-x64.msi
+          # -sval skips ICE validation; per-user installs with harvested file
+          # key paths (ICE38/ICE64) would otherwise fail the link step.
+          light.exe `
+            -sval `
+            -out openVideoAI-windows-x64.msi `
+            build\wixobj\openVideoAI.wixobj build\wixobj\AppFiles.wixobj
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload Windows artifacts
