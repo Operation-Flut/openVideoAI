@@ -328,7 +328,7 @@ jobs:
           $appDir = (Resolve-Path "dist\openVideoAI").Path
           candle.exe `
             -dAppSourceDir="$appDir" `
-            -out build\wixobj `
+            -out build\wixobj\ `
             build\openVideoAI.wxs build\AppFiles.wxs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
