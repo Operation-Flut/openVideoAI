@@ -14,7 +14,7 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: "SF Pro Display", "SF Pro Text", "San Francisco", "Helvetica Neue", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
         body {
@@ -107,7 +107,15 @@
             color: var(--text-muted);
         }
 
-        select, input[type="range"], input[type="file"] {
+        .slider-hint {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            opacity: 0.7;
+            margin-top: 0.4rem;
+        }
+
+        select, input[type="file"] {
             width: 100%;
             padding: 0.6rem;
             background-color: var(--bg-dark);
@@ -115,6 +123,53 @@
             color: var(--text-main);
             border-radius: 6px;
             outline: none;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            max-width: 280px;
+            height: 4px;
+            margin: 0.6rem 0;
+            /* Filled portion is set dynamically via JS (updateRangeFill); the
+               50%/50% split here is the fallback before JS runs. */
+            background: linear-gradient(to right, #ffffff 50%, #333333 50%);
+            border: none;
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #1e1e1e;
+            border: 2px solid #ffffff;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #1e1e1e;
+            border: 2px solid #ffffff;
+            cursor: pointer;
+        }
+
+        /* Live value readouts next to the range sliders */
+        #faceFidelityValue, #sharpenVal, #denoiseVal,
+        #logDenoiseValue, #logShadowValue,
+        #lowlightStrengthValue, #flatprofileFlatnessValue, #flatprofileWarmthValue,
+        #overexposureHighlightValue, #overexposureShadowValue {
+            color: #38bdf8;
+            font-weight: 500;
+            min-width: 2.5ch;
+            display: inline-block;
         }
 
         input[type="file"] {
@@ -224,6 +279,8 @@
             gap: 0.75rem;
             margin-bottom: 0.75rem;
             flex-wrap: wrap;
+            cursor: pointer;
+            user-select: none;
         }
 
         .feature-header h3 {
@@ -275,7 +332,30 @@
         }
 
         .feature-content {
-            transition: opacity 0.2s ease, pointer-events 0.2s ease;
+            max-height: 1000px;
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease, pointer-events 0.3s ease;
+        }
+
+        .feature-chevron {
+            flex-shrink: 0;
+            margin-left: auto;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            transition: transform 0.3s ease;
+        }
+
+        .feature-section.collapsed .feature-header {
+            margin-bottom: 0;
+        }
+
+        .feature-section.collapsed .feature-content {
+            max-height: 0;
+            opacity: 0;
+        }
+
+        .feature-section.collapsed .feature-chevron {
+            transform: rotate(-90deg);
         }
 
         .feature-content[style*="opacity: 0.5"],

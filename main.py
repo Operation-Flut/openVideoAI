@@ -128,8 +128,15 @@ def run_desktop_window(host="127.0.0.1", port=8000, width=1280, height=800):
         return
 
     # Resolve the window icon path
-    from src.core.paths import icon_path
-    _icon = str(icon_path()) if icon_path().exists() else None
+    # Use .ico for Windows, PNG for other platforms
+    from src.core.paths import icon_path, is_frozen
+    icon_path_obj = icon_path()
+    _icon = str(icon_path_obj) if (icon_path_obj.exists() and 
+                                    (icon_path_obj.suffix == '.ico' or icon_path_obj.suffix in {'.png', '.jpg', '.jpeg'})) else None
+    
+    # Pywebview icon requires .ico on Windows
+    if sys.platform == "win32" and _icon and not _icon.lower().endswith('.ico'):
+        _icon = None  # pywebview requires .ico format on Windows
 
     # Start server in a daemon background thread
     server_holder = {"thread": None}

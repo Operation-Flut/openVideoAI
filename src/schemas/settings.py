@@ -23,6 +23,13 @@ class SettingsModel(BaseModel):
     defaultTileSize: Optional[Literal[256, 400, 512, 768]] = None
     outputFormat: Optional[Literal["source", "jpg", "png", "webp", "tiff", "mp4"]] = None
     jpgQuality: Optional[int] = Field(None, ge=1, le=100)
+    # Tile overlap (px) used by the overlap-add stitcher for
+    # sharpen/deblur on large images. Larger overlap blends tile seams more
+    # deeply at the cost of more model calls.
+    sharpenOverlap: Optional[int] = Field(None, ge=32, le=256)
+    # Subtle unsharp-mask finishing applied after deblurring. 0 disables it;
+    # NAFNet leaves defocus/compression-blurred content rather soft.
+    sharpenUnsharpAmount: Optional[float] = Field(None, ge=0, le=2)
     exportDir: Optional[str] = None
     exportNaming: Optional[str] = None
     overwriteExisting: Optional[bool] = None
@@ -37,6 +44,8 @@ class SettingsModel(BaseModel):
     hideIncompatibleModels: Optional[bool] = None
     # Favor AI models over built-in math algorithms in recommendations
     preferAi: Optional[bool] = None
+    # Show every individual model in the Model Manager instead of the curated view
+    advancedMode: Optional[bool] = None
 
     # Appearance
     theme: Optional[Literal["dark", "light", "system"]] = None

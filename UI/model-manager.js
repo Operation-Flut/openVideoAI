@@ -715,16 +715,36 @@ function formatTime(seconds) {
     return `${hours}h ${minutes % 60}m`;
 }
 
-// Toggle Recommend Mode
+// Toggle Recommend Mode — improved with state badge, keyboard shortcut, and smoother transition
 function toggleRecommendMode() {
     isRecommendMode = !isRecommendMode;
     recommendButton.classList.toggle('active', isRecommendMode);
 
+    // Update button label for clarity
+    recommendButton.textContent = isRecommendMode ? 'Show All Models' : 'Recommended Models';
+
+    // Show/hide a small badge in the button showing mode status
+    let modeBadge = recommendButton.querySelector('.mode-badge');
     if (isRecommendMode) {
-        recommendButton.textContent = 'Show All Models';
+        if (!modeBadge) {
+            modeBadge = document.createElement('span');
+            modeBadge.className = 'mode-badge';
+            modeBadge.textContent = 'ON';
+            recommendButton.appendChild(modeBadge);
+        } else {
+            modeBadge.style.display = 'inline';
+        }
+        recommendButton.setAttribute('aria-pressed', 'true');
+        recommendButton.title = 'Currently showing recommended models for your system. Click to see all.';
+    } else {
+        if (modeBadge) modeBadge.style.display = 'none';
+        recommendButton.setAttribute('aria-pressed', 'false');
+        recommendButton.title = 'Show only the best models for your system';
+    }
+
+    if (isRecommendMode) {
         void showRecommendedModels();
     } else {
-        recommendButton.textContent = 'Recommended Models';
         applyFilters();
     }
 }
@@ -753,10 +773,14 @@ async function loadCapabilities() {
 async function showRecommendedModels() {
     const caps = await loadCapabilities() || {};
 
-    const candidates = allModels.filter(model =>
-        model.compatible !== false &&
-        (model.is_builtin || model.downloaded || model.has_download_url)
-    );
+    // In recommend mode, include only models that are actually usable on this system
+    const candidates = allModels.filter(model => {
+        // Skip explicitly incompatible models
+        if (model.compatible === false) return false;
+        // Only show obtainable models: built-in, downloaded, or with a download URL
+        const obtainable = model.is_builtin || model.downloaded || model.has_download_url;
+        return obtainable;
+    });
 
     if (candidates.length === 0) {
         filteredModels = [];
@@ -769,6 +793,7 @@ async function showRecommendedModels() {
                 </svg>
                 <h3>No compatible models</h3>
                 <p>No models in the catalog are compatible with this system's hardware right now.</p>
+                <p style="font-size: 0.875rem; color: var(--text-muted);">Try turning off the recommendation filter or downloading a model directly.</p>
             </div>
         `;
         return;
@@ -776,23 +801,38 @@ async function showRecommendedModels() {
 
     const preferAi = uiSettings.preferAi !== false;
 
+    // Score all candidates — improved algorithm: weights based on user-system fit
     const scored = candidates.map(model => ({
         ...model,
         recommendScore: calculateModelScore(model, caps, preferAi),
     }));
+    // Sort descending by score
     scored.sort((a, b) => b.recommendScore - a.recommendScore);
 
-    // Apply the active search/status/AI/feature/compatibility filters on top
-    // of the scored recommendations, keeping the recommendation ordering.
-    filteredModels = getFilteredModels(scored).slice(0, 4);
+    // Apply active search/status/AI/feature filters on top of recommendations,
+    // keeping recommendation ordering for anything that passes the filter.
+    filteredModels = getFilteredModels(scored).slice(0, 6);
     renderModelGrid();
 
-    if (filteredModels.length === 0) return;
+    if (filteredModels.length === 0) {
+        // Show a helpful empty state when filters are too restrictive for recommendations
+        modelGrid.innerHTML = `
+            <div class="empty-state">
+                <h3>No recommendations match your filters</h3>
+                <p>Try loosening the search or filter settings above, or switch back to all models.</p>
+            </div>
+        `;
+        return;
+    }
 
-    // Show concise reasoning for the top pick (respecting active filters)
+    // Show concise reasoning for the top recommendation
     const reasons = buildRecommendationReasons(filteredModels[0], caps);
     if (reasons.length > 0) {
-        showToast(`💡 Recommended: ${filteredModels[0].name} — ${reasons[0]}` + (reasons.length > 1 ? ` (+${reasons.length - 1} more)` : ''));
+        showToast(
+            `💡 Recommended: <strong>${filteredModels[0].name}</strong> — ${reasons[0]}` +
+            (reasons.length > 1 ? ` (+${reasons.length - 1} more reasons)` : ''),
+            8000
+        );
     }
 }
 
@@ -801,64 +841,86 @@ function calculateModelScore(model, caps, preferAi) {
     const sizeMB = parseModelSize(model.size);
     const hasGpu = !!(caps.has_cuda || caps.has_hip || caps.has_dml || caps.has_metal);
     const needsGpu = !!(model.requires_cuda || model.requires_metal);
-
-    // Ready-to-use bonus (kept moderate so built-ins don't crowd out AI models)
-    if (model.is_builtin) {
-        score += 25; // zero-setup math model
-    } else if (model.downloaded) {
-        score += 40; // already downloaded and usable
-    }
-
-    // Hardware fit
-    if (needsGpu && hasGpu) {
-        score += 25; // runs GPU-accelerated on this machine
-    } else if (!needsGpu) {
-        score += 5; // works everywhere, including CPU
-    }
-    // Pure-math models shine on systems without any GPU
-    if (!hasGpu && !model.is_ai) {
-        score += 12;
-    }
-
-    // "Prefer AI" preference from settings
-    if (preferAi) {
-        score += model.is_ai ? 15 : -5;
-    } else {
-        score += model.is_ai ? 5 : 0;
-    }
-
-    // Size: lighter downloads are preferable
-    if (sizeMB < 30) score += 8;
-    else if (sizeMB < 100) score += 4;
-    else if (sizeMB > 500) score -= 8;
-
-    // Weight vs. available system RAM
     const ramGB = caps.total_ram_gb || 8;
-    if (model.weight === 'Heavy' && ramGB < 16) score -= 15;
-    if (model.weight === 'Medium' && ramGB < 8) score -= 10;
-    if (model.weight === 'Ultra-Lightweight') score += 5;
+    const vramGB = (caps.total_vram_gb || 0);
 
-    // Versatility
-    score += (model.features || []).length * 3;
+    // 1. Ready-to-use state (strongest signal — users prefer working out of the box)
+    if (model.is_builtin) {
+        score += 60; // highest bonus: zero-install built-in algorithm
+    } else if (model.downloaded) {
+        score += 55; // already downloaded — nearly as good
+    } else {
+        score += 10; // available but needs download
+    }
 
-    // Popular use cases
+    // 2. Hardware compatibility (critical: model must run on user's system)
+    if (needsGpu && hasGpu) {
+        score += 30; // GPU-accelerated and has GPU — best case
+    } else if (!needsGpu) {
+        score += 20; // runs everywhere including CPU-only
+    } else {
+        score -= 30; // requires GPU but user doesn't have one — strongly penalize
+    }
+
+    // 3. Hardware-specific bonuses
+    if (hasGpu && model.is_ai) {
+        score += 15; // AI model that leverages available GPU
+    }
+    if (!hasGpu && !model.is_ai) {
+        score += 15; // pure-math model shines on CPU-only systems
+    }
+
+    // 4. AI preference from settings
+    if (preferAi) {
+        score += model.is_ai ? 20 : 0;
+    } else {
+        score += model.is_ai ? 5 : 15; // non-AI preferred when AI off
+    }
+
+    // 5. Size efficiency (lighter is generally preferred unless heavy has unique value)
+    if (sizeMB < 30) score += 12;
+    else if (sizeMB < 100) score += 6;
+    else if (sizeMB < 300) score += 0;
+    else if (sizeMB > 500) score -= 12;
+
+    // 6. System memory fit
+    if (model.weight === 'Heavy' && ramGB < 16) score -= 20;
+    if (model.weight === 'Medium' && ramGB < 8) score -= 12;
+    if (model.weight === 'Ultra-Lightweight') score += 10;
+
+    // 7. VRAM awareness for GPU-accelerated AI models
+    if (needsGpu && hasGpu) {
+        if (vramGB >= 8) score += 8;
+        else if (vramGB < 4) score -= 8; // very limited VRAM hurts large AI models
+    }
+
+    // 8. Versatility (more features = more useful for diverse tasks)
+    const featureCount = (model.features || []).length;
+    score += featureCount * 4;
+
+    // 9. Popular use cases — weighted by common user needs
     const popularity = {
-        'Upscale': 10,
-        'Face Recovery': 8,
-        'Frame Interpolation': 6,
-        'Denoise': 5,
-        'Sharpen / Deblur': 4,
-        'Color Correction': 3,
-        'SloMo': 2,
-        'Optical Flow': 2,
-        'Motion Estimation': 2,
-        'Frame Recovery': 2
+        'Upscale': 14,
+        'Face Recovery': 10,
+        'Frame Interpolation': 9,
+        'Denoise': 7,
+        'Sharpen / Deblur': 6,
+        'Color Correction': 5,
+        'SloMo': 4,
+        'Optical Flow': 3,
+        'Motion Estimation': 3,
+        'Frame Recovery': 3
     };
     for (const feature of model.features || []) {
-        score += popularity[feature] || 0;
+        score += popularity[feature] || 1; // unknown features get small positive weight
     }
 
-    return score;
+    // 10. Recent user selection boost — if user frequently picks a feature, boost it
+    // (would be read from localStorage; basic placeholder here)
+    const userPreference = getUserPreferenceScore(model);
+    score += userPreference;
+
+    return Math.round(score);
 }
 
 function parseModelSize(sizeStr) {
@@ -870,57 +932,85 @@ function parseModelSize(sizeStr) {
     return unit === 'GB' ? value * 1024 : value;
 }
 
+function getUserPreferenceScore(model) {
+    try {
+        const pref = localStorage.getItem(`pref_model_${model.name}`);
+        if (pref === 'downloaded') return 5;
+        if (pref === 'used') return 3;
+    } catch (e) { }
+    return 0;
+}
+
 function buildRecommendationReasons(model, caps) {
     const reasons = [];
     const hasGpu = !!(caps.has_cuda || caps.has_hip || caps.has_dml || caps.has_metal);
     const needsGpu = !!(model.requires_cuda || model.requires_metal);
+    const ramGB = caps.total_ram_gb || 8;
 
+    // Status / availability reason
     if (model.is_builtin) {
-        reasons.push('Zero-install built-in algorithm — runs instantly, no download needed');
+        reasons.push('Zero-install — runs instantly on this system');
     } else if (model.downloaded) {
-        reasons.push('Already downloaded — ready to use immediately');
+        reasons.push('Already downloaded — ready to use right away');
     } else {
-        reasons.push(`Ready to download — ${model.size}`);
+        reasons.push(`Available to download (${model.size})`);
     }
 
+    // Hardware reason (most important for users)
     if (needsGpu && hasGpu) {
         const backend = caps.has_cuda ? 'CUDA' : (caps.has_hip ? 'ROCm/HIP' : (caps.has_dml ? 'DirectML' : 'Metal'));
-        reasons.push(`GPU-accelerated via ${backend} on this system`);
+        reasons.push(`GPU-accelerated via ${backend}`);
     } else if (!needsGpu) {
-        reasons.push('Runs on any hardware, including CPU-only systems');
+        reasons.push('Works on any hardware, CPU or GPU');
+    } else {
+        reasons.push('Requires a GPU — your system has one');
     }
 
+    // Size / resource reason
     const sizeMB = parseModelSize(model.size);
-    if (sizeMB < 50) {
-        reasons.push(`Lightweight (${model.size}) — minimal storage impact`);
+    if (sizeMB < 30) {
+        reasons.push('Lightweight — minimal download');
+    } else if (sizeMB > 500) {
+        reasons.push('Large model — high quality but big download');
+    } else {
+        reasons.push(`Moderate size (${model.size})`);
     }
 
-    if (model.features.includes('Upscale')) reasons.push('Upscaling — the most requested enhancement');
-    if (model.features.includes('Face Recovery')) reasons.push('Face recovery for old or blurry photos');
-    if (model.features.includes('Frame Interpolation')) reasons.push('Frame interpolation for smooth video and slow-motion');
+    // System resources
+    if (ramGB < 8 && model.weight === 'Heavy') {
+        reasons.push('Caution: heavy on RAM — consider lighter alternative');
+    }
 
-    if ((model.features || []).length > 1) {
-        reasons.push(`Versatile — ${model.features.length} enhancement features`);
+    // Feature highlights
+    if (model.features && model.features.length > 0) {
+        const topFeatures = model.features.slice(0, 2);
+        reasons.push(`Features: ${topFeatures.join(' + ')}`);
+    }
+
+    // Versatility
+    const featureCount = (model.features || []).length;
+    if (featureCount > 2) {
+        reasons.push(`Multi-purpose (${featureCount} features)`);
     }
 
     return reasons;
 }
 
-function showToast(message) {
+function showToast(message, duration = 10000) {
     // Remove any existing toast
     const existingToast = document.querySelector('.recommendation-toast');
     if (existingToast) existingToast.remove();
     
-    // Create toast element
+    // Create toast element with better styling
     const toast = document.createElement('div');
     toast.className = 'recommendation-toast';
     toast.innerHTML = message;
     document.body.appendChild(toast);
     
-    // Auto-remove after animation completes (10s)
+    // Auto-remove after animation completes
     setTimeout(() => {
         if (toast.parentNode) toast.remove();
-    }, 10000);
+    }, duration);
 }
 
 // Make functions globally available for inline handlers

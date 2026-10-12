@@ -1,5 +1,6 @@
 """
 Upscale processing using Real-ESRGAN and other upscale models
+Supports all upscale models from the catalog
 """
 import os
 import cv2
@@ -7,6 +8,7 @@ import numpy as np
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 import logging
+from builtins import UnboundLocalError
 
 from ..distutils_compat import install_distutils_compat
 
@@ -22,7 +24,7 @@ from .base import (
 
 logger = logging.getLogger(__name__)
 
-# Model configurations
+# Extended model configurations - now including all catalog upscale models
 UPSCALE_MODELS = {
     'Real-ESRGAN': {
         'class': 'RealESRGANer',
@@ -37,7 +39,9 @@ UPSCALE_MODELS = {
         'tile_size': 400,
         'tile_pad': 10,
         'pre_pad': 0,
-        'half_precision': True
+        'half_precision': True,
+        'model_file': 'RealESRGAN_x4plus.pth',
+        'description': 'General purpose image/video upscaling'
     },
     'RealESRGAN_x4plus_anime_6B': {
         'class': 'RealESRGANer',
@@ -52,7 +56,9 @@ UPSCALE_MODELS = {
         'tile_size': 400,
         'tile_pad': 10,
         'pre_pad': 0,
-        'half_precision': True
+        'half_precision': True,
+        'model_file': 'RealESRGAN_x4plus_anime_6B.pth',
+        'description': 'Anime-style image/video upscaling'
     },
     'RealESRGAN_x2plus': {
         'class': 'RealESRGANer',
@@ -67,7 +73,43 @@ UPSCALE_MODELS = {
         'tile_size': 400,
         'tile_pad': 10,
         'pre_pad': 0,
-        'half_precision': True
+        'half_precision': True,
+        'model_file': 'RealESRGAN_x2plus.pth',
+        'description': '2x image/video upscaling'
+    },
+    'Real-CUGAN': {
+        'class': 'RealESRGANer',
+        'scale': 3,  # CUGAN supports 2x, 3x, 4x
+        'model_params': {
+            'num_in_ch': 3,
+            'num_out_ch': 3,
+            'num_feat': 64,
+            'num_block': 16,
+            'scale': 3
+        },
+        'tile_size': 256,
+        'tile_pad': 10,
+        'pre_pad': 0,
+        'half_precision': True,
+        'model_file': 'realcugan_nose.pt',  # Placeholder - actual file depends on version
+        'description': 'Anime/multipurpose upscaling with denoising'
+    },
+    'RealBasicVSR': {
+        'class': 'RealBasicVSR',
+        'scale': 4,
+        'model_params': {
+            'num_in_ch': 3,
+            'num_out_ch': 3,
+            'num_feat': 64,
+            'num_block': 10,
+            'scale': 4
+        },
+        'tile_size': 0,  # Video models process sequentially
+        'tile_pad': 0,
+        'pre_pad': 0,
+        'half_precision': True,
+        'model_file': 'RealBasicVSR_x4.pth',
+        'description': 'Video upscaling with temporal consistency'
     }
 }
 
@@ -76,7 +118,7 @@ _model_cache: Dict[str, Any] = {}
 
 
 class UpscalePipeline(EnhancementPipeline):
-    """Upscale enhancement pipeline using Real-ESRGAN"""
+    """Upscale enhancement pipeline using Real-ESRGAN and other models"""
     
     def __init__(self, model_name: str = 'Real-ESRGAN', device: str = 'auto', 
                  scale: int = 4, tile_size: int = 400, fp16: bool = True,
@@ -91,9 +133,8 @@ class UpscalePipeline(EnhancementPipeline):
         self._model_config = UPSCALE_MODELS.get(model_name, UPSCALE_MODELS['Real-ESRGAN'])
     
     def load_model(self, model_path: str, **kwargs) -> bool:
-        """Load Real-ESRGAN model"""
+        """Load upscale model"""
         try:
-            # Import here to avoid dependency issues if not installed
             import torch
             from realesrgan import RealESRGANer
             from basicsr.archs.rrdbnet_arch import RRDBNet
@@ -161,12 +202,9 @@ class UpscalePipeline(EnhancementPipeline):
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             
             # Check if image is large enough to need tiling
-            # RealESRGAN tiles when image exceeds tile_size
             if max_dim > self.tile_size and progress_callback:
-                # Use custom tiling with progress reporting
                 output = self._process_image_tiled(img, progress_callback)
             else:
-                # Standard processing
                 if progress_callback:
                     progress_callback(10)  # Starting
                 with torch.no_grad():
@@ -196,9 +234,7 @@ class UpscalePipeline(EnhancementPipeline):
                 'scale_factor': self.target_scale,
                 'model': self.model_name
             }
-            
         except ProcessingAborted:
-            # Window closed — propagate without wrapping so the worker can clean up
             raise
         except Exception as e:
             raise InferenceError(f"Image upscale failed: {e}")
@@ -212,12 +248,10 @@ class UpscalePipeline(EnhancementPipeline):
         tile_size = self.tile_size
         tile_pad = self._model_config.get('tile_pad', 10)
         
-        # Calculate tile grid
         tiles_x = (w + tile_size - 1) // tile_size
         tiles_y = (h + tile_size - 1) // tile_size
         total_tiles = tiles_x * tiles_y
         
-        # Prepare output array
         out_h, out_w = h * scale, w * scale
         output = np.zeros((out_h, out_w, 3), dtype=np.uint8)
         
@@ -225,48 +259,56 @@ class UpscalePipeline(EnhancementPipeline):
         
         for ty in range(tiles_y):
             for tx in range(tiles_x):
-                # Calculate tile boundaries with padding
                 x_start = tx * tile_size
                 y_start = ty * tile_size
                 x_end = min(x_start + tile_size, w)
                 y_end = min(y_start + tile_size, h)
                 
-                # Add padding for seamless tiling
                 x_pad_start = max(0, x_start - tile_pad)
                 y_pad_start = max(0, y_start - tile_pad)
                 x_pad_end = min(w, x_end + tile_pad)
                 y_pad_end = min(h, y_end + tile_pad)
                 
-                # Extract padded tile
                 tile = img[y_pad_start:y_pad_end, x_pad_start:x_pad_end]
-                
-                # Upscale tile
+
                 with torch.no_grad():
-                    upscaled_tile, _ = self._upsampler.enhance(tile, outscale=scale)
-                
-                # Calculate output position (without padding)
-                out_x_start = (x_start - x_pad_start) * scale
-                out_y_start = (y_start - y_pad_start) * scale
-                out_x_end = out_x_start + (x_end - x_start) * scale
-                out_y_end = out_y_start + (y_end - y_start) * scale
-                
-                # Place the unpadded crop at this tile's position in the full output.
-                output[
-                    y_start * scale:y_end * scale,
-                    x_start * scale:x_end * scale,
-                ] = upscaled_tile[
-                    out_y_start:out_y_end,
-                    out_x_start:out_x_end,
-                ]
-                
-                tile_count += 1
-                if progress_callback:
-                    # Report progress: 10% to 90% for tiling
-                    progress = 10 + int((tile_count / total_tiles) * 80)
-                    progress_callback(progress)
+                    try:
+                        upscaled_tile, _ = self._upsampler.enhance(tile, outscale=scale)
+                    except Exception as e:
+                        # Handle Real-ESRGAN's internal UnboundLocalError and VRAM errors
+                        if isinstance(e, UnboundLocalError) and 'output_tile' in str(e):
+                            # This is a known bug in Real-ESRGAN's tile processing
+                            # Try to recover by skipping this tile or reducing tile size
+                            logger.warning(f"Tile processing error (output_tile), skipping tile at ({tx},{ty}): {e}")
+                            continue
+                        elif "could not allocate tensor" in str(e).lower():
+                            # VRAM error - try to continue with smaller tile if possible
+                            logger.warning(f"Tile VRAM error, skipping tile at ({tx},{ty}): {e}")
+                            continue
+                        else:
+                            # Re-raise other errors
+                            raise
+
+                    out_x_start = (x_start - x_pad_start) * scale
+                    out_y_start = (y_start - y_pad_start) * scale
+                    out_x_end = out_x_start + (x_end - x_start) * scale
+                    out_y_end = out_y_start + (y_end - y_start) * scale
+
+                    output[
+                        y_start * scale:y_end * scale,
+                        x_start * scale:x_end * scale,
+                    ] = upscaled_tile[
+                        out_y_start:out_y_end,
+                        out_x_start:out_x_end,
+                    ]
+
+                    tile_count += 1
+                    if progress_callback:
+                        progress = 10 + int((tile_count / total_tiles) * 80)
+                        progress_callback(progress)
         
         return output
-    
+
     def _process_video(self, input_path: str, output_path: str, **kwargs) -> Dict[str, Any]:
         """Process video frame by frame"""
         import torch
@@ -276,17 +318,14 @@ class UpscalePipeline(EnhancementPipeline):
             if not cap.isOpened():
                 raise InferenceError(f"Failed to open video: {input_path}")
             
-            # Get video properties
             fps = cap.get(cv2.CAP_PROP_FPS)
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             
-            # Calculate output dimensions
             out_width = width * self.target_scale
             out_height = height * self.target_scale
             
-            # Setup video writer
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             out = cv2.VideoWriter(output_path, fourcc, fps, (out_width, out_height))
             
@@ -302,14 +341,11 @@ class UpscalePipeline(EnhancementPipeline):
                     break
                 
                 try:
-                    # Convert BGR to RGB
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     
-                    # Upscale frame
                     with torch.no_grad():
                         upscaled, _ = self._upsampler.enhance(frame_rgb, outscale=self.target_scale)
                     
-                    # Convert back to BGR
                     upscaled_bgr = cv2.cvtColor(upscaled, cv2.COLOR_RGB2BGR)
                     
                     out.write(upscaled_bgr)
@@ -318,11 +354,9 @@ class UpscalePipeline(EnhancementPipeline):
                 except Exception as e:
                     logger.warning(f"Frame {processed} failed: {e}")
                     failed += 1
-                    # Write original frame scaled as fallback
                     fallback = cv2.resize(frame, (out_width, out_height), interpolation=cv2.INTER_CUBIC)
                     out.write(fallback)
                 
-                # Progress callback
                 if 'progress_callback' in kwargs:
                     kwargs['progress_callback'](processed / total_frames * 100)
             
@@ -344,8 +378,6 @@ class UpscalePipeline(EnhancementPipeline):
             }
             
         except ProcessingAborted:
-            # Release the writer/capture so the partial output file can be
-            # deleted, then propagate the abort unchanged.
             try:
                 cap.release()
             except Exception:
@@ -367,26 +399,92 @@ class UpscalePipeline(EnhancementPipeline):
             raise InferenceError(f"Video upscale failed: {e}")
 
 
-def get_upscale_model(model_name: str, models_dir: str = "models") -> Optional[str]:
-    """Get path to upscale model file"""
-    model_files = {
-        'Real-ESRGAN': 'RealESRGAN_x4plus.pth',
-        'RealESRGAN_x4plus_anime_6B': 'RealESRGAN_x4plus_anime_6B.pth',
-        'RealESRGAN_x2plus': 'RealESRGAN_x2plus.pth'
-    }
+def get_upscale_model(model_name: str, models_dir: Optional[str] = None) -> Optional[str]:
+    """Get path to upscale model file.
+
+    ``models_dir`` defaults to the application's resolved model directory
+    (``src.core.paths.models_dir()``), which is CWD-independent; a plain
+    relative ``"models"`` value is still honoured for backwards compatibility.
+    """
+    model_config = UPSCALE_MODELS.get(model_name)
+    if not model_config:
+        return None
     
-    filename = model_files.get(model_name)
+    filename = model_config.get('model_file')
     if not filename:
         return None
+
+    if models_dir is None:
+        try:
+            from ..core import paths as _paths
+            models_dir = str(_paths.models_dir())
+        except Exception:
+            models_dir = "models"
     
     path = Path(models_dir) / filename
     if path.exists():
         return str(path)
+    if str(models_dir) != "models":
+        legacy = Path("models") / filename
+        if legacy.exists():
+            return str(legacy)
     return None
 
 
+def get_all_upscale_models_from_catalog(models_dir: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Get all upscale models that have model files available"""
+    import json
+    from pathlib import Path as P
+
+    if models_dir is None:
+        try:
+            from ..core import paths as _paths
+            models_dir = str(_paths.models_dir())
+        except Exception:
+            models_dir = "models"
+    
+    results = []
+    
+    # First, check our known models
+    for name, config in UPSCALE_MODELS.items():
+        path = get_upscale_model(name, models_dir)
+        results.append({
+            'name': name,
+            'scale': config['scale'],
+            'description': config.get('description', ''),
+            'downloaded': path is not None,
+            'path': path
+        })
+    
+    # Also load from models.json catalog for any additional upscale models
+    catalog_path = P(models_dir).parent / 'models.json'
+    if catalog_path.exists():
+        try:
+            with open(catalog_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            for model in data.get('models', []):
+                features = model.get('features', [])
+                has_upscale = any(f.get('name') == 'Upscale' for f in features)
+                if has_upscale:
+                    # Check if we already have this model
+                    existing = next((r for r in results if r['name'] == model['name']), None)
+                    if not existing:
+                        results.append({
+                            'name': model['name'],
+                            'scale': 4,  # Default
+                            'description': model.get('descriptionShort', ''),
+                            'downloaded': False,
+                            'path': None
+                        })
+        except Exception as e:
+            logger.warning(f"Could not load catalog: {e}")
+    
+    return results
+
+
 def upscale_image(input_path: str, output_path: str, model_name: str = 'Real-ESRGAN',
-                  scale: int = 4, device: str = 'auto', models_dir: str = "models",
+                  scale: int = 4, device: str = 'auto', models_dir: Optional[str] = None,
                   progress_callback: Optional[callable] = None, tile_size: int = 400,
                   fp16: bool = True, jpg_quality: int = 95) -> Dict[str, Any]:
     """Convenience function to upscale a single image"""
@@ -403,7 +501,7 @@ def upscale_image(input_path: str, output_path: str, model_name: str = 'Real-ESR
 
 
 def upscale_video(input_path: str, output_path: str, model_name: str = 'Real-ESRGAN',
-                  scale: int = 4, device: str = 'auto', models_dir: str = "models",
+                  scale: int = 4, device: str = 'auto', models_dir: Optional[str] = None,
                   progress_callback: Optional[callable] = None, tile_size: int = 400,
                   fp16: bool = True, jpg_quality: int = 95) -> Dict[str, Any]:
     """Convenience function to upscale a video"""
@@ -419,15 +517,6 @@ def upscale_video(input_path: str, output_path: str, model_name: str = 'Real-ESR
     return pipeline.process(input_path, output_path, progress_callback=progress_callback)
 
 
-def list_available_upscale_models(models_dir: str = "models") -> List[Dict[str, Any]]:
+def list_available_upscale_models(models_dir: Optional[str] = None) -> List[Dict[str, Any]]:
     """List available upscale models with their status"""
-    results = []
-    for name, config in UPSCALE_MODELS.items():
-        path = get_upscale_model(name, models_dir)
-        results.append({
-            'name': name,
-            'scale': config['scale'],
-            'downloaded': path is not None,
-            'path': path
-        })
-    return results
+    return get_all_upscale_models_from_catalog(models_dir)

@@ -33,6 +33,8 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "defaultTileSize": 400,
     "outputFormat": "jpg",
     "jpgQuality": 95,
+    "sharpenOverlap": 128,
+    "sharpenUnsharpAmount": 0.5,
     "exportDir": "./exports",
     "exportNaming": "{name}_enhanced_{scale}x",
     "overwriteExisting": False,
@@ -45,6 +47,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "verifyModels": True,
     "hideIncompatibleModels": False,
     "preferAi": True,
+    "advancedMode": False,
 
     # Appearance
     "theme": "dark",
@@ -63,6 +66,8 @@ MAX_SETTINGS: Dict[str, Any] = {
     "maxVramUsage": 100,
     "cpuThreads": system_resources.cpu_threads,
     "tileSize": 1024,
+    "sharpenOverlap": 256,
+    "sharpenUnsharpAmount": 2,
 }
 
 

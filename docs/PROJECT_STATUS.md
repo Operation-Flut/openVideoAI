@@ -23,6 +23,9 @@ configuring enhancement options. The model catalog is documented in
 | Reencoding through FFMPEG and Handbgrakes engines | planned | not yet started with |
 | Overexposure & Contrast Fix | planned | not yet implemented, usable Models exist in catalog |
 | Project File Saving (.avp (AI Video Project) File) | planned | not yest started |
+| Dedicated Motion deblur | not implemented | Necessary Models are added, but no dedicated Function for this application implemented |
+| Fix compression | planned | not yet started |
+| FCK AI Mode (when enabeled it disabeles any AI Model and its features so the app purely relies on NON-AI, math, algorithem, etc models)| planned | Necessary Models are implemented |
 
 
 ## API endpoints
@@ -57,3 +60,19 @@ Interactive API documentation is available at `/docs` while the app is running.
   benchmarks. Upstream projects and checkpoints may have separate licenses.
 - Performance will depend on the eventual inference implementation, model
   checkpoint, execution backend, input media, and available hardware.
+
+
+## Default Presets
+[ ] 60fps
+[ ] Super SloMo
+[ ] Frame Restoration
+[ ] Restoration
+[ ] 2k
+[ ] 4k
+[ ] Color Normalization
+[ ] Color Restoration
+[ ] All good All Fine
+[ ] Deblur
+[ ] "Fix da Focus"
+[ ] Motion-de-blur
+[ ] "Steal da Grade"

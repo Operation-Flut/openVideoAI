@@ -26,9 +26,17 @@ body.settings-page .workspace {
 
 /* Settings Header */
 .settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
     margin-bottom: 1.5rem;
     padding-bottom: 1rem;
     border-bottom: 1px solid var(--border);
+}
+
+.settings-header-text {
+    min-width: 0;
 }
 
 .settings-header h1 {
@@ -44,6 +52,14 @@ body.settings-page .workspace {
     color: var(--text-muted);
 }
 
+/* Save button in the header (overrides the global .btn-primary width: 100%) */
+.settings-save-btn {
+    flex-shrink: 0;
+    width: auto;
+    margin: 0;
+    padding: 0.6rem 1.4rem;
+}
+
 .settings-save-status {
     min-height: 1.25rem;
     margin-bottom: 1rem;
@@ -57,6 +73,11 @@ body.settings-page .workspace {
 
 .settings-save-status[data-state="success"] {
     color: #22c55e;
+}
+
+.settings-save-status[data-state="warning"] {
+    color: #f59e0b;
+    font-weight: 500;
 }
 
 /* Tab Navigation */
@@ -123,6 +144,7 @@ body.settings-page .workspace {
 
 .tab-panel {
     animation: fadeIn 0.15s ease;
+    padding: 0.5rem 0;
 }
 
 .tab-panel[hidden] {
@@ -137,17 +159,22 @@ body.settings-page .workspace {
 /* Section Styles */
 .settings-section {
     background: var(--panel-bg);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    margin-bottom: 1.25rem;
+    border: none;
+    border-radius: 8px;
+    margin-bottom: 1rem;
     overflow: hidden;
+}
+
+.settings-section:not(:last-child) {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1rem;
 }
 
 .section-header {
     display: flex;
     align-items: flex-start;
     gap: 1rem;
-    padding: 1.25rem 1.5rem;
+    padding: 1rem 1.25rem;
     border-bottom: 1px solid var(--border);
     background: var(--bg-dark);
 }
@@ -238,17 +265,24 @@ body.settings-page .workspace {
 .slider-container {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
 }
 
 .slider-container input[type="range"] {
     flex: 1;
-    height: 6px;
+    min-width: 0;
+    max-width: none;
     -webkit-appearance: none;
     appearance: none;
-    background: var(--bg-dark);
+    height: 6px;
+    margin: 0;
+    /* Filled portion is set dynamically via JS (updateRangeFill); the
+       50%/50% split here is the fallback before JS runs. */
+    background: linear-gradient(to right, #ffffff 50%, #333333 50%);
+    border: none;
     border-radius: 3px;
     outline: none;
+    cursor: pointer;
 }
 
 .slider-container input[type="range"]::-webkit-slider-thumb {
@@ -257,31 +291,36 @@ body.settings-page .workspace {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: var(--primary);
+    background: #1e1e1e;
+    border: 2px solid #ffffff;
     cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.15s;
+    transition: none;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
 }
 
 .slider-container input[type="range"]::-webkit-slider-thumb:hover {
-    transform: scale(1.2);
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.35);
 }
 
 .slider-container input[type="range"]::-moz-range-thumb {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: var(--primary);
+    background: #1e1e1e;
+    border: 2px solid #ffffff;
     cursor: pointer;
-    border: none;
+}
+
+.slider-container input[type="range"]::-moz-range-track {
+    background: transparent;
 }
 
 .slider-value {
-    min-width: 60px;
+    min-width: 48px;
     text-align: right;
     font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--text-main);
+    font-weight: 600;
+    color: #38bdf8;
     font-variant-numeric: tabular-nums;
 }
 
@@ -412,7 +451,7 @@ select:disabled, input[readonly] {
 
 /* System Info */
 .system-info {
-    padding: 1.5rem;
+    padding: 1rem;
 }
 
 .info-grid {
@@ -424,8 +463,8 @@ select:disabled, input[readonly] {
 .info-card {
     background: var(--bg-dark);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1rem;
+    border-radius: 6px;
+    padding: 0.75rem;
 }
 
 .info-card h3 {
@@ -573,6 +612,15 @@ input[type="color"]::-webkit-color-swatch {
 @media (max-width: 768px) {
     .settings-container {
         padding: 1rem;
+    }
+
+    .settings-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .settings-save-btn {
+        width: 100%;
     }
 
     .settings-grid {

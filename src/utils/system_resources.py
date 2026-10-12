@@ -512,7 +512,12 @@ def get_hardware_gpus() -> List[Dict[str, Any]]:
 
 
 def get_system_hardware_info() -> Dict[str, Any]:
-    """Get summarized system hardware specifications"""
+    """Get summarized system hardware specifications.
+
+    Returns the legacy flat summary strings (cpu / ram / gpu / vram / os /
+    python) plus structured details (cpu_details, ram_details, gpus,
+    os_details, python_details, capabilities) for the Settings UI.
+    """
     cpu_cores = psutil.cpu_count(logical=True) or os.cpu_count() or 4
     mem = psutil.virtual_memory()
     total_ram_gb = mem.total / (1024**3)
@@ -538,8 +543,7 @@ def get_system_hardware_info() -> Dict[str, Any]:
 
     # If PyTorch doesn't see an accelerator, note the OS-level adapter name
     if gpu_info == "CPU (software)":
-        hardware_list = get_hardware_gpus()
-        for g in hardware_list:
+        for g in get_hardware_gpus():
             if g.get("backend") == "hardware":
                 gpu_info = f"{g['name']} (CPU PyTorch Mode)"
                 break
@@ -550,5 +554,28 @@ def get_system_hardware_info() -> Dict[str, Any]:
         "gpu": gpu_info,
         "vram": vram_info,
         "os": f"{platform.system()} {platform.release()}",
-        "python": platform.python_version()
+        "python": platform.python_version(),
+        # Structured details consumed by the Settings UI. Kept alongside the
+        # flat strings above so older consumers keep working.
+        "cpu_details": {
+            "name": platform.processor() or "Unknown CPU",
+            "cores": cpu_cores,
+            "threads": cpu_cores,
+        },
+        "ram_details": {
+            "total": mem.total,
+            "total_gb": round(total_ram_gb, 1),
+            "available_gb": round(available_ram_gb, 1),
+        },
+        "gpus": get_hardware_gpus(),
+        "os_details": {
+            "platform": platform.system(),
+            "version": platform.version(),
+            "release": platform.release(),
+        },
+        "python_details": {
+            "version": platform.python_version(),
+            "implementation": platform.python_implementation(),
+        },
+        "capabilities": get_platform_capabilities(),
     }

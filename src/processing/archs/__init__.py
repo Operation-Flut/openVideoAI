@@ -1,0 +1,1 @@
+"""Self-contained model architectures bundled with openVideoAI."""

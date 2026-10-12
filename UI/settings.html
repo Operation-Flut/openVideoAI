@@ -6,6 +6,7 @@
     <title>Settings - openVideoAI</title>
     <link rel="stylesheet" href="/ui/style.css">
     <link rel="stylesheet" href="/ui/settings.css">
+    <link rel="stylesheet" href="/ui/about.css">
 </head>
 <body class="settings-page">
     <header>
@@ -28,8 +29,11 @@
         <main class="workspace">
             <div class="settings-container">
                 <div class="settings-header">
-                    <h1>Settings</h1>
-                    <p class="settings-subtitle">Configure system resources, processing defaults, models, and appearance</p>
+                    <div class="settings-header-text">
+                        <h1>Settings</h1>
+                        <p class="settings-subtitle">Configure system resources, processing defaults, models, and appearance</p>
+                    </div>
+                    <button class="btn-primary settings-save-btn" id="saveSettings">Save Settings</button>
                 </div>
 
                 <p class="settings-save-status" id="settingsSaveStatus" role="status" aria-live="polite"></p>
@@ -69,6 +73,14 @@
                             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
                         </svg>
                         <span>Advanced</span>
+                    </button>
+                    <button class="settings-tab" role="tab" aria-selected="false" aria-controls="tab-about" data-tab="about">
+                        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M12 16v-4"></path>
+                            <path d="M12 8h.01"></path>
+                        </svg>
+                        <span>About</span>
                     </button>
                 </nav>
 
@@ -264,6 +276,24 @@
                                         <span class="slider-value" id="jpgQualityValue">95%</span>
                                     </div>
                                 </div>
+
+                                <div class="setting-item">
+                                    <label for="sharpenOverlap">Sharpen Tile Overlap</label>
+                                    <div class="slider-container">
+                                        <input type="range" id="sharpenOverlap" min="32" max="256" value="128" step="8">
+                                        <span class="slider-value" id="sharpenOverlapValue">128 px</span>
+                                    </div>
+                                    <p class="setting-hint">How deeply the tapered tiles overlap when deblurring large images. Higher values blend tile seams (and corners) smoother at the cost of more model calls.</p>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label for="sharpenUnsharpAmount">Sharpen Unsharp Mask</label>
+                                    <div class="slider-container">
+                                        <input type="range" id="sharpenUnsharpAmount" min="0" max="2" value="0.5" step="0.05">
+                                        <span class="slider-value" id="sharpenUnsharpAmountValue">50%</span>
+                                    </div>
+                                    <p class="setting-hint">Subtle unsharp-mask finishing after deblurring, since NAFNet leaves defocus/compression blur rather soft. 0 = off.</p>
+                                </div>
                             </div>
                         </section>
                     </div>
@@ -334,6 +364,17 @@
                                 </div>
                                 <label class="toggle-switch">
                                     <input type="checkbox" id="preferAi" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                                                        <div class="setting-item toggle-item">
+                                <div>
+                                    <label>Advanced Mode</label>
+                                    <span class="setting-hint">Shows in Model Manager all available Models individually (Disable if you want a more user-friendly experience)</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="advancedMode">
                                     <span class="slider"></span>
                                 </label>
                             </div>
@@ -496,6 +537,182 @@
                                         <h3>Python</h3>
                                         <p id="pythonInfo">Detecting...</p>
                                     </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- About Tab -->
+                    <div class="tab-panel" id="tab-about" role="tabpanel" aria-labelledby="tab-about" data-tab="about" hidden>
+                        <!-- About Section -->
+                        <section class="settings-section">
+                            <header class="section-header">
+                                <div class="section-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <path d="M12 16v-4"></path>
+                                        <path d="M12 8h.01"></path>
+                                    </svg>
+                                </div>
+                                <div class="section-text">
+                                    <h2>About openVideoAI</h2>
+                                    <p class="section-desc">Version information and credits</p>
+                                </div>
+                            </header>
+
+                            <div class="about-content">
+                                <div class="about-logo">
+                                    <!-- <svg viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1.5">
+                                        <rect x="2" y="2" width="20" height="20" rx="5"/>
+                                        <path d="M8 7l8 10-8 10"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                    </svg> -->
+                                    <img src="/assets/black_glass.png.png" alt="openVideoAI Logo" width="64" height="64">
+                                    <h3>openVideoAI</h3>
+                                    <p class="version">Version 0.2.0-alpha</p>
+                                </div>
+
+                                <div class="about-info">
+                                    <p><strong>Local AI Video Enhancement</strong></p>
+                                    <p>A powerful open-source application for enhancing, restoring, and transforming video and images using state-of-the-art AI models.</p>
+                                    
+                                    <div class="about-links">
+                                        <a href="https://github.com/Operation-Flut/openVideoAI/" target="_blank" rel="noopener" class="about-link">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                                            </svg>
+                                            GitHub Repository
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <div class="credits-section">
+                                    <h4>Credits</h4>
+                                    <p>Built with open-source AI models from the community:</p>
+                                    <ul class="credits-list">
+                                        <li><strong>Real-ESRGAN</strong> - XPixel Group</li>
+                                        <li><strong>CodeFormer</strong> - SCzhou</li>
+                                        <li><strong>RIFE</strong> - Vladmandic</li>
+                                        <li><strong>NAFNet</strong> - Megvii Research</li>
+                                        <li><strong>SCUNet</strong> - cszn</li>
+                                        <li><strong>FILM</strong> - Google Research</li>
+                                        <li><strong>BasicSR</strong> - XPixel Group</li>
+                                        <li><strong>OpenCV</strong> - OpenCV Team</li>
+                                        <li><strong>PyTorch</strong> - Meta AI</li>
+                                        <li><strong>FastAPI</strong> - Sebastián Ramírez</li>
+                                    </ul>
+                                </div>
+
+                                <div class="license-section">
+                                    <h4>License</h4>
+                                    <p>openVideoAI is open-source software licensed under the MIT License.</p>
+                                    <p class="license-text">See LICENSE file for full license details.</p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Feature Status Section -->
+                        <section class="settings-section">
+                            <header class="section-header">
+                                <div class="section-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="section-text">
+                                    <h2>Feature Status</h2>
+                                    <p class="section-desc">Implementation status of all enhancement features</p>
+                                </div>
+                            </header>
+
+                            <div class="feature-status-table-container">
+                                <table class="feature-status-table" id="featureStatusTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Feature</th>
+                                            <th>Status</th>
+                                            <th>Backend</th>
+                                            <th>Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="featureStatusBody">
+                                        <!-- Populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="status-legend">
+                                <div class="legend-item">
+                                    <span class="status-dot implemented"></span>
+                                    <span>Implemented - Fully functional with models</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="status-dot partial"></span>
+                                    <span>Partial - Basic implementation, requires dependencies</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="status-dot planned"></span>
+                                    <span>Planned - Scheduled for future development</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="status-dot ui-only"></span>
+                                    <span>UI Only - Toggle available, no processing yet</span>
+                                </div>
+                            </div>
+
+                            <div class="feature-stats" id="featureStats">
+                                <div class="stat-card implemented">
+                                    <span class="stat-number" id="implementedCount">0</span>
+                                    <span class="stat-label">Implemented</span>
+                                </div>
+                                <div class="stat-card partial">
+                                    <span class="stat-number" id="partialCount">0</span>
+                                    <span class="stat-label">Partial</span>
+                                </div>
+                                <div class="stat-card planned">
+                                    <span class="stat-number" id="plannedCount">0</span>
+                                    <span class="stat-label">Planned</span>
+                                </div>
+                                <div class="stat-card ui-only">
+                                    <span class="stat-number" id="uiOnlyCount">0</span>
+                                    <span class="stat-label">UI Only</span>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Model Catalog Summary -->
+                        <section class="settings-section">
+                            <header class="section-header">
+                                <div class="section-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                    </svg>
+                                </div>
+                                <div class="section-text">
+                                    <h2>Model Catalog</h2>
+                                    <p class="section-desc">Overview of available enhancement models</p>
+                                </div>
+                            </header>
+
+                            <div class="model-catalog-summary" id="modelCatalogSummary">
+                                <div class="catalog-stat">
+                                    <span class="catalog-number" id="totalModels">26</span>
+                                    <span class="catalog-label">Total Models</span>
+                                </div>
+                                <div class="catalog-stat">
+                                    <span class="catalog-number" id="totalFeatures">18</span>
+                                    <span class="catalog-label">Features</span>
+                                </div>
+                                <div class="catalog-stat">
+                                    <span class="catalog-number" id="totalModules">2</span>
+                                    <span class="catalog-label">Processing Modules</span>
+                                </div>
+                            </div>
+
+                            <div class="catalog-details" id="catalogDetails">
+                                <h4>Models by Feature</h4>
+                                <div class="model-counts-grid" id="modelCountsGrid">
+                                    <!-- Populated by JavaScript -->
                                 </div>
                             </div>
                         </section>

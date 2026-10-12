@@ -4,13 +4,14 @@ openVideoAI keeps metadata for open-source image and video restoration models in
 [models.json](models.json). The catalog describes potential model integrations;
 it is not a claim that every model is already runnable in the application.
 
-It currently lists **26 unique models**: **16** have a catalog download URL and
+It currently lists **28 unique models**: **18** have a catalog download URL and
 **10** do not. The model manager skips repeated names in the catalog.
 
 > **Current status:** the app can list model metadata, manage model downloads,
-> and run the Real-ESRGAN upscaling workflow for images and video. The other
-> catalog entries are model metadata and/or downloadable assets; they do not
-> necessarily have an inference integration in the app. Treat listed sizes as
+> and run the Real-ESRGAN upscaling workflow plus NAFNet image denoising and
+> deblurring workflows. The other catalog entries are model metadata and/or
+> downloadable assets; they do not necessarily have an inference integration
+> in the app. Treat listed sizes as
 > estimates, not verified benchmarks.
 
 ## Catalog models
@@ -19,7 +20,9 @@ It currently lists **26 unique models**: **16** have a catalog download URL and
 | --- | --- | --- | --- | --- | --- |
 | [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | General-purpose upscaling and texture restoration | Images | ~65 MB | AI | CUDA |
 | [CodeFormer](https://github.com/sczhou/CodeFormer) | Face restoration | Images | ~150 MB | AI | CUDA |
-| [NAFNet](https://github.com/megvii-research/NAFNet) | Deblurring and sharpening | Images | ~15 MB | AI | CPU-capable |
+| [NAFNet-SIDD](https://huggingface.co/nyanko7/nafnet-models/blob/main/NAFNet-SIDD-width64.pth) | Sensor-noise removal | Images | ~464 MB | AI | CPU-capable |
+| [NAFNet-REDS](https://huggingface.co/nyanko7/nafnet-models/blob/main/NAFNet-REDS-width64.pth) | General video restoration | Video | ~272 MB | AI | CPU-capable |
+| [NAFNet-GoPro](https://huggingface.co/nyanko7/nafnet-models/blob/main/NAFNet-GoPro-width64.pth) | Motion deblurring | Images / video | ~272 MB | AI | CPU-capable |
 | [SCUNet](https://github.com/cszn/SCUNet) | Denoising and compression-artifact cleanup | Images | ~45 MB | AI | CUDA |
 | [RIFE](https://github.com/vladmandic/rife) | Frame interpolation and slow motion | Video | ~20 MB | AI | CPU-capable |
 | [RIFE v4.26 (PyTorch)](https://huggingface.co/thornmaze/RIFE) | RIFE v4.26 checkpoint archive | Video | ~23 MB | AI | CUDA |
@@ -61,7 +64,8 @@ corresponding inference implementations are complete.
 
 - For general image upscaling, start with Real-ESRGAN.
 - For faces, consider CodeFormer.
-- For image blur, consider NAFNet; for image noise, consider SCUNet.
+- For sensor noise, consider NAFNet-SIDD; for motion blur, consider
+  NAFNet-GoPro. NAFNet-REDS targets general video restoration.
 - For anime or line art, consider Real-CUGAN.
 - For generating intermediate video frames, consider RIFE or FILM.
 - The catalog includes the non-AI optical-flow entries Farnebäck, DIS, Dual

@@ -145,5 +145,15 @@ def ui_dir() -> Path:
 
 
 def icon_path() -> Path:
-    """Window icon (PNG).  Falls back gracefully if the file is missing."""
-    return bundle_dir() / "assets" / "icon" / "black_glass.png"
+    """Window icon path - always returns .ico for Windows."""
+    icon_dir = bundle_dir() / "assets" / "icon"
+    
+    # On Windows, use .ico format for pywebview
+    if sys.platform == "win32":
+        icon_file = icon_dir / "black_glass.ico"
+        # Fallback to PNG if .ico doesn't exist (will be filtered in main.py)
+        return icon_file if icon_file.exists() else icon_dir / "black_glass.png"
+    
+    # Non-Windows platforms
+    icon_file = icon_dir / "black_glass.png"
+    return icon_file if icon_file.exists() else icon_dir / "black_glass.ico"

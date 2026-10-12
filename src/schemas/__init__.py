@@ -3,7 +3,26 @@ Schemas package for openVideoAI
 """
 from .settings import SettingsModel
 from .models import ModelResponse, DownloadRequest, DownloadStatus
-from .processing import UpscaleRequest, ProcessResponse
+from .processing import (
+    UpscaleRequest,
+    FaceRecoveryRequest,
+    SharpenRequest,
+    DenoiseRequest,
+    FrameInterpolationRequest,
+    SlowMotionRequest,
+    MatchColorRequest,
+    LogRestorationRequest,
+    LowLightRequest,
+    DistortionRequest,
+    SDRtoHDRRequest,
+    ObjectRemovalRequest,
+    FocusFixRequest,
+    OverexposureFixRequest,
+    FlatProfileRequest,
+    ReencodeRequest,
+    MultiprocessRequest,
+    ProcessResponse,
+)
 
 __all__ = [
     'SettingsModel',
@@ -11,5 +30,21 @@ __all__ = [
     'DownloadRequest',
     'DownloadStatus',
     'UpscaleRequest',
+    'FaceRecoveryRequest',
+    'SharpenRequest',
+    'DenoiseRequest',
+    'FrameInterpolationRequest',
+    'SlowMotionRequest',
+    'MatchColorRequest',
+    'LogRestorationRequest',
+    'LowLightRequest',
+    'DistortionRequest',
+    'SDRtoHDRRequest',
+    'ObjectRemovalRequest',
+    'FocusFixRequest',
+    'OverexposureFixRequest',
+    'FlatProfileRequest',
+    'ReencodeRequest',
+    'MultiprocessRequest',
     'ProcessResponse',
 ]
