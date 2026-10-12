@@ -181,7 +181,7 @@ jobs:
           pyinstaller `
             --noconfirm `
             --clean `
-            --noconsole `
+            --windowed `
             --onefile `
             --name openVideoAI `
             --icon "assets\icon\black_glass.ico" `
@@ -582,6 +582,7 @@ jobs:
           files: |
             release-artifacts/openVideoAI-windows-x64.msi
             release-artifacts/openVideoAI-windows-x64-portable.zip
+            release-artifacts/openVideoAI-linux-x64.tar.gz.part-*
             release-artifacts/openVideoAI-macos.dmg
             release-artifacts/openVideoAI-macos.zip
           draft: ${{ inputs.draft || false }}
