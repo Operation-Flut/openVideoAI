@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, F
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from src import __version__
 from typing import Callable, List, Literal, Optional, Dict, Any
 import asyncio
 import json
@@ -98,7 +99,7 @@ def _load_processing():
 DEFAULT_SETTINGS = dict(CORE_DEFAULT_SETTINGS)
 MAX_SETTINGS = dict(CORE_MAX_SETTINGS)
 
-app = FastAPI(title="openVideoAI", version="0.1.0")
+app = FastAPI(title="openVideoAI", version=__version__)
 
 # Enable CORS for local development
 app.add_middleware(
@@ -614,6 +615,8 @@ async def process_upscale_file(
                         # For images, we may want to re-encode with different format/quality
                         if selected_format != 'source' and selected_format != input_suffix.lstrip('.'):
                             # Need to re-encode
+                            if cv2 is None:
+                                raise RuntimeError("OpenCV (cv2) is not available")
                             img = cv2.imread(str(input_path))
                             write_params = []
                             if selected_format in ('jpg', 'jpeg'):
@@ -629,6 +632,8 @@ async def process_upscale_file(
                             shutil.copy2(input_path, output_path)
                         else:
                             # Re-encode with cv2
+                            if cv2 is None:
+                                raise RuntimeError("OpenCV (cv2) is not available")
                             cap = cv2.VideoCapture(str(input_path))
                             fps = cap.get(cv2.CAP_PROP_FPS)
                             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -840,7 +845,10 @@ async def process_face_recovery_file(
                 device=selected_device,
                 fidelity_weight=fidelity_weight
             )
-            pipeline.load_model(get_face_model(model_name))
+            model_path = get_face_model(model_name)
+            if model_path is None:
+                raise RuntimeError(f"Face recovery model '{model_name}' not found. Please download it from the Model Manager.")
+            pipeline.load_model(model_path)
             result = pipeline.process(str(input_path), str(output_path))
             process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
         except ProcessingAborted as e:
@@ -991,7 +999,10 @@ async def process_denoise_file(
     def process_task():
         try:
             pipeline = DenoisePipeline(model_name=model_name, device=selected_device, strength=strength)
-            pipeline.load_model(get_denoise_model(model_name))
+            model_path = get_denoise_model(model_name)
+            if model_path is None:
+                raise RuntimeError(f"Denoise model '{model_name}' not found. Please download it from the Model Manager.")
+            pipeline.load_model(model_path)
             result = pipeline.process(str(input_path), str(output_path))
             process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
         except ProcessingAborted as e:
@@ -1032,7 +1043,7 @@ async def process_frame_interpolation_file(
         raise HTTPException(status_code=503, detail="Server is shutting down")
     
     # Check file type
-    if not file.content_type.startswith('video/'):
+    if not file.content_type or not file.content_type.startswith('video/'):
         raise HTTPException(status_code=400, detail="Frame interpolation only supports video files")
     
     temp_dir = TEMP_PROCESSING_DIR
@@ -1061,7 +1072,10 @@ async def process_frame_interpolation_file(
                 device=selected_device,
                 multiplier=multiplier
             )
-            pipeline.load_model(get_frame_interp_model(model_name))
+            model_path = get_frame_interp_model(model_name)
+            if model_path is None:
+                raise RuntimeError(f"Frame interpolation model '{model_name}' not found. Please download it from the Model Manager.")
+            pipeline.load_model(model_path)
             result = pipeline.process(str(input_path), str(output_path))
             process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
         except ProcessingAborted as e:
@@ -1101,7 +1115,7 @@ async def process_slow_motion_file(
     if _shutdown_requested:
         raise HTTPException(status_code=503, detail="Server is shutting down")
     
-    if not file.content_type.startswith('video/'):
+    if not file.content_type or not file.content_type.startswith('video/'):
         raise HTTPException(status_code=400, detail="Slow motion only supports video files")
     
     temp_dir = TEMP_PROCESSING_DIR
@@ -1209,7 +1223,12 @@ async def process_match_color_file(
                 strength=strength,
                 preserve_luminance=preserve_luminance,
             )
-            pipeline.load_model(get_match_color_model(model_name))
+            model_paths = get_match_color_model(model_name)
+            if model_paths is None:
+                # For non-neural models like Reinhard, model_paths can be None
+                # load_model handles this case
+                pass
+            pipeline.load_model(model_paths)
             result = pipeline.process(
                 str(input_path),
                 str(output_path),
@@ -1541,7 +1560,7 @@ async def process_reencode_file(
     if _shutdown_requested:
         raise HTTPException(status_code=503, detail="Server is shutting down")
     
-    if not file.content_type.startswith('video/'):
+    if not file.content_type or not file.content_type.startswith('video/'):
         raise HTTPException(status_code=400, detail="Reencoding only supports video files")
     
     temp_dir = TEMP_PROCESSING_DIR
@@ -1590,6 +1609,11 @@ if ui_path.exists():
     # Mount UI folder for direct access to CSS, JS, etc. at /ui/
     app.mount("/ui", StaticFiles(directory=str(ui_path)), name="ui")
 
+# Serve assets (images, icons, etc.)
+assets_path = _paths.project_root() / "assets"
+if assets_path.exists():
+    app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_ui():
@@ -1611,10 +1635,12 @@ async def serve_model_manager():
 
 @app.get("/settings", response_class=HTMLResponse)
 async def serve_settings():
-    """Serve the settings UI"""
+    """Serve the settings UI with version injected"""
     settings_file = ui_path / "settings.html"
     if settings_file.exists():
-        return FileResponse(settings_file)
+        html_content = settings_file.read_text(encoding="utf-8")
+        html_content = html_content.replace("{{VERSION}}", __version__)
+        return HTMLResponse(content=html_content)
     return HTMLResponse("<h1>Settings UI not found</h1>")
 
 

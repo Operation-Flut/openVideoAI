@@ -92,6 +92,8 @@ body.settings-page .workspace {
     position: relative;
     overflow-x: auto;
     flex-wrap: nowrap;
+    /* Prevent visual gap on the right when last tab is selected */
+    justify-content: flex-start;
 }
 
 .settings-tab {
@@ -131,10 +133,6 @@ body.settings-page .workspace {
     flex-shrink: 0;
     stroke: currentColor;
     transition: stroke 0.15s ease;
-}
-
-.tab-indicator {
-    display: none; /* Not used with current tab styling */
 }
 
 /* Tab Panels */

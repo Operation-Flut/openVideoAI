@@ -248,130 +248,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path build -Force | Out-Null
 
-          # The WXS is written as a here-string so all special characters are
-          # literal. Version and paths are substituted via PowerShell after.
-          $wxs = @'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-
-            <Product
-              Id="*"
-              Name="openVideoAI"
-              Language="1033"
-              Version="__WINDOWS_VERSION__"
-              Manufacturer="openVideoAI"
-              UpgradeCode="{F32A90F9-E651-4D75-A1B6-717F7F5DAD7E}">
-
-              <Package
-                InstallerVersion="500"
-                Compressed="yes"
-                InstallScope="perUser"
-                Comments="openVideoAI - Local AI Video Enhancement" />
-
-              <MajorUpgrade
-                DowngradeErrorMessage="A newer version of openVideoAI is already installed." />
-
-              <MediaTemplate EmbedCab="yes" />
-
-              <!-- == Directory layout ====================================== -->
-              <Directory Id="TARGETDIR" Name="SourceDir">
-
-                <!-- Install to %LocalAppData%\Programs\openVideoAI (perUser) -->
-                <Directory Id="LocalAppDataFolder">
-                  <Directory Id="ProgramsFolder" Name="Programs">
-                    <Directory Id="INSTALLFOLDER" Name="openVideoAI">
-                      <Component Id="AppExecutable"
-                                 Guid="{84E48F28-1F68-4CC8-9512-8E7AB32D79B3}">
-                        <File Id="OpenVideoAIExe"
-                              Source="dist\openVideoAI.exe" />
-                        <RegistryValue Root="HKCU"
-                                       Key="Software\openVideoAI"
-                                       Name="Installed"
-                                       Type="integer"
-                                       Value="1"
-                                       KeyPath="yes" />
-                        <RemoveFolder Id="RemoveInstallFolder"
-                                      Directory="INSTALLFOLDER"
-                                      On="uninstall" />
-                      </Component>
-                    </Directory>
-                  </Directory>
-                </Directory>
-
-                <!-- Start Menu shortcut lives under the user's Programs folder -->
-                <Directory Id="ProgramMenuFolder">
-                  <Directory Id="ApplicationProgramsFolder" Name="openVideoAI" />
-                </Directory>
-
-                <!-- Desktop shortcut -->
-                <Directory Id="DesktopFolder" Name="Desktop" />
-
-              </Directory>
-
-              <!-- == Components =========================================== -->
-              <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
-                <ComponentRef Id="AppExecutable" />
-              </ComponentGroup>
-
-              <!-- Start Menu shortcut -->
-              <DirectoryRef Id="ApplicationProgramsFolder">
-                <Component Id="StartMenuShortcut"
-                           Guid="{2C5A1B9E-4F3D-4E8A-B7C6-91D2E5F0A384}">
-                  <Shortcut Id="StartMenuShortcutLink"
-                            Name="openVideoAI"
-                            Description="Local AI Video Enhancement"
-                            Target="[INSTALLFOLDER]openVideoAI.exe"
-                            WorkingDirectory="INSTALLFOLDER"
-                            Icon="AppIcon" />
-                  <RemoveFolder Id="CleanupStartMenu"
-                                Directory="ApplicationProgramsFolder"
-                                On="uninstall" />
-                  <RegistryValue Root="HKCU"
-                                 Key="Software\openVideoAI"
-                                 Name="StartMenuInstalled"
-                                 Type="integer"
-                                 Value="1"
-                                 KeyPath="yes" />
-                </Component>
-              </DirectoryRef>
-
-              <!-- Desktop shortcut -->
-              <DirectoryRef Id="DesktopFolder">
-                <Component Id="DesktopShortcut"
-                           Guid="{7E4B2F1A-8D5C-4A9B-B3E6-C2D1F8A09357}">
-                  <Shortcut Id="DesktopShortcutLink"
-                            Name="openVideoAI"
-                            Description="Local AI Video Enhancement"
-                            Target="[INSTALLFOLDER]openVideoAI.exe"
-                            WorkingDirectory="INSTALLFOLDER"
-                            Icon="AppIcon" />
-                  <RegistryValue Root="HKCU"
-                                 Key="Software\openVideoAI"
-                                 Name="DesktopInstalled"
-                                 Type="integer"
-                                 Value="1"
-                                 KeyPath="yes" />
-                </Component>
-              </DirectoryRef>
-
-              <!-- Application icon (used by shortcuts) -->
-              <Icon Id="AppIcon" SourceFile="assets\icon\black_glass.ico" />
-
-              <!-- Add/Remove Programs entry -->
-              <Property Id="ARPPRODUCTICON" Value="AppIcon" />
-              <Property Id="ARPHELPLINK" Value="https://github.com/openVideoAI/openVideoAI" />
-
-              <!-- == Features ============================================= -->
-              <Feature Id="MainFeature" Title="openVideoAI" Level="1">
-                <ComponentGroupRef Id="ProductComponents" />
-                <ComponentRef Id="StartMenuShortcut" />
-                <ComponentRef Id="DesktopShortcut" />
-              </Feature>
-
-            </Product>
-          </Wix>
-'@
-
+          # Read template and substitute version
+          $wxs = Get-Content -Path .github\wix\openVideoAI.wxs.template -Raw
           $wxs = $wxs.Replace("__WINDOWS_VERSION__", $env:RELEASE_WINDOWS_VERSION)
           $wxs | Set-Content -Path build\openVideoAI.wxs -Encoding UTF8
 
@@ -543,9 +421,39 @@ jobs:
           python-version: "3.12"
 
       - name: Install OpenCode CLI (best effort)
-        # The generator falls back to Mistral when OpenCode is unavailable.
+        # The generator falls back to Mistral/local when OpenCode is unavailable.
         continue-on-error: true
         run: npm install --global @opencode/cli
+
+      - name: Install and configure Ollama for local AI (no API key)
+        # Primary provider: local Ollama model (qwen2.5-coder:7b). No authentication needed.
+        continue-on-error: true
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve &
+          sleep 5
+          ollama pull qwen2.5-coder:7b
+
+      - name: Configure OpenCode for Ollama
+        continue-on-error: true
+        run: |
+          mkdir -p ~/.opencode
+          cat > ~/.opencode/config.json << 'EOF'
+          {
+            "$schema": "https://opencode.ai/config.json",
+            "provider": {
+              "ollama": {
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "Ollama",
+                "options": { "baseURL": "http://localhost:11434/v1" },
+                "models": {
+                  "qwen2.5-coder:7b": { "name": "Qwen2.5 Coder 7B" }
+                }
+              }
+            },
+            "model": "ollama/qwen2.5-coder:7b"
+          }
+          EOF
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v8
@@ -558,18 +466,14 @@ jobs:
 
       - name: Generate release notes
         env:
-          # Primary provider: the OpenCode CLI, walking a waterfall of OpenCode
-          # Zen free models (exo-free -> big-pickle -> nemotron -> space-bunny
-          # -> muse-spark). Authenticate with the OPENCODE_API_KEY secret.
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          # Optional overrides: a comma-separated model chain, a single model,
-          # or extra `opencode run` flags.
-          OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS }}
-          OPENCODE_MODEL: ${{ vars.OPENCODE_MODEL }}
+          # Primary provider: OpenCode CLI with local Ollama (qwen2.5-coder:7b).
+          # No API key needed. Configured in "Configure OpenCode for Ollama" step.
+          OPENCODE_MODEL: ollama/qwen2.5-coder:7b
           OPENCODE_RUN_ARGS: ${{ vars.OPENCODE_RUN_ARGS }}
-          # Fallback provider: Mistral.
+          # Fallback provider: Mistral (set MISTRAL_API_KEY secret to enable).
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
+          # Final fallback: local commit summarization (always works, no AI).
         run: |
           python scripts/generate_release_notes.py \
             --version "${{ needs.release-info.outputs.version }}" \
