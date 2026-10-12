@@ -60,12 +60,12 @@
       <ComponentRef Id="AppExecutable" />
       <!-- UI folder (HTML/CSS/JS assets) -->
       <Component Id="UIFolder" Guid="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}">
-        <File Id="UIFiles" Source="dist\openVideoAI\_internal\UI\" />
+        <File Id="*" Source="dist\openVideoAI\_internal\UI\" />
         <CreateFolder />
       </Component>
       <!-- Assets folder -->
       <Component Id="AssetsFolder" Guid="{B2C3D4E5-F6A7-8901-BCDE-F12345678901}">
-        <File Id="AssetsFiles" Source="dist\openVideoAI\_internal\assets\" />
+        <File Id="*" Source="dist\openVideoAI\_internal\assets\" />
         <CreateFolder />
       </Component>
       <!-- Models JSON -->
@@ -74,7 +74,7 @@
       </Component>
       <!-- Python runtime and libraries -->
       <Component Id="PythonRuntime" Guid="{D4E5F6A7-B8C9-0123-DEFA-234567890123}">
-        <File Id="PythonFiles" Source="dist\openVideoAI\_internal\" />
+        <File Id="*" Source="dist\openVideoAI\_internal\" />
         <CreateFolder />
       </Component>
     </ComponentGroup>
