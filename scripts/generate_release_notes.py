@@ -8,13 +8,17 @@ Provider order:
    -> ``space-bunny`` -> ``muse-spark``), using the first one that returns
    usable notes. Authenticate with ``OPENCODE_API_KEY``. Override the chain with
    ``OPENCODE_MODELS`` (comma-separated) or ``OPENCODE_MODEL`` (single).
-2. Mistral chat completions - the fallback provider. Configure it with
+2. Mistral chat completions - the first fallback provider. Configure it with
    ``MISTRAL_API_KEY`` (and optionally ``MISTRAL_MODEL``).
-3. Local commit summarization - a deterministic last resort so a release is
+3. Puter AI (``puter.ai.chat``) - the second fallback provider. Uses the **free**
+   ``puter`` Python package (``pip install puter``) which provides serverless AI
+   access without an API key. Configure model with ``PUTER_MODEL``
+   (default: ``gpt-4o-mini``).
+4. Local commit summarization - a deterministic last resort so a release is
    never blocked just because no AI provider is reachable.
 
 The script only uses the standard library so it can run in a release job without
-installing the project's heavy AI dependencies.
+installing the project's heavy AI dependencies (``puter`` is a lightweight dep).
 """
 
 from __future__ import annotations
@@ -431,6 +435,47 @@ def generate_with_mistral(
         raise RuntimeError(f"unexpected Mistral response: {exc}") from exc
 
 
+def generate_with_puter(
+    prompt: str,
+    *,
+    model: str = "gpt-4o-mini",
+    timeout: int = 120,
+) -> str:
+    """Generate notes with Puter's free Python package (puter.ai.chat).
+
+    Uses the free `puter` Python package which provides access to Puter's
+    serverless AI models without requiring an API key.
+    
+    Install: pip install puter
+    """
+    try:
+        import puter
+    except ImportError:
+        raise RuntimeError("puter package not installed. Run: pip install puter")
+    
+    # Puter's Python package provides async chat; run in a new event loop
+    import asyncio
+    
+    async def _chat():
+        # puter.ai.chat returns the response text directly
+        return await puter.ai.chat(prompt, model=model)
+    
+    try:
+        # Run async function synchronously
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        response = loop.run_until_complete(
+            asyncio.wait_for(_chat(), timeout=timeout)
+        )
+        return _strip_ansi(response).strip()
+    except Exception as e:
+        raise RuntimeError(f"Puter AI (free package) failed: {e}") from e
+
+
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
@@ -473,8 +518,22 @@ def build_notes(
         if sections:
             return render_sections(sections), "mistral"
         errors.append("mistral: output contained no recognized sections")
-    except Exception as exc:  # noqa: BLE001 - fall through to the local summary
+    except Exception as exc:  # noqa: BLE001 - fall through to the next fallback
         errors.append(f"mistral: {exc}")
+
+    # Fallback: Puter AI (free Python package: pip install puter).
+    try:
+        text = generate_with_puter(
+            prompt,
+            model=os.environ.get("PUTER_MODEL") or "gpt-4o-mini",
+            timeout=int(os.environ.get("PUTER_TIMEOUT", "120")),
+        )
+        sections = parse_sections(text)
+        if sections:
+            return render_sections(sections), "puter"
+        errors.append("puter: output contained no recognized sections")
+    except Exception as exc:  # noqa: BLE001 - fall through to the local summary
+        errors.append(f"puter: {exc}")
 
     for error in errors:
         _log(error)

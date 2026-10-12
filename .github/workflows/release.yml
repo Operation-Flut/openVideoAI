@@ -175,14 +175,13 @@ jobs:
           # PyInstaller must be installed explicitly; it is not in requirements.txt
           pip install pyinstaller
 
-      - name: Build executable with PyInstaller
+      - name: Build executable with PyInstaller (--onedir for MSI)
         shell: pwsh
         run: |
           pyinstaller `
             --noconfirm `
             --clean `
             --windowed `
-            --onefile `
             --name openVideoAI `
             --icon "assets\icon\black_glass.ico" `
             --add-data "UI;UI" `
@@ -197,20 +196,52 @@ jobs:
             --hidden-import clr `
             main.py
 
-      - name: Verify executable exists
+      - name: Verify onedir build exists
         shell: pwsh
         run: |
-          if (-not (Test-Path "dist\openVideoAI.exe")) {
-            Write-Error "dist\openVideoAI.exe not found - PyInstaller build failed"
+          if (-not (Test-Path "dist\openVideoAI\openVideoAI.exe")) {
+            Write-Error "dist\openVideoAI\openVideoAI.exe not found - PyInstaller onedir build failed"
             exit 1
           }
-          $size = (Get-Item "dist\openVideoAI.exe").Length / 1MB
-          Write-Host "dist\openVideoAI.exe  $([math]::Round($size,1)) MB"
+          $size = (Get-Item "dist\openVideoAI\openVideoAI.exe").Length / 1MB
+          Write-Host "dist\openVideoAI\openVideoAI.exe  $([math]::Round($size,1)) MB"
+
+      - name: Build portable executable (--onefile)
+        shell: pwsh
+        run: |
+          pyinstaller `
+            --noconfirm `
+            --clean `
+            --windowed `
+            --onefile `
+            --name openVideoAI-portable `
+            --icon "assets\icon\black_glass.ico" `
+            --add-data "UI;UI" `
+            --add-data "assets;assets" `
+            --add-data "models.json;." `
+            --collect-all src `
+            --collect-all webview `
+            --collect-all uvicorn `
+            --collect-all fastapi `
+            --hidden-import webview `
+            --hidden-import webview.platforms.winforms `
+            --hidden-import clr `
+            main.py
+
+      - name: Verify portable executable exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist\openVideoAI-portable.exe")) {
+            Write-Error "dist\openVideoAI-portable.exe not found - PyInstaller onefile build failed"
+            exit 1
+          }
+          $size = (Get-Item "dist\openVideoAI-portable.exe").Length / 1MB
+          Write-Host "dist\openVideoAI-portable.exe  $([math]::Round($size,1)) MB"
 
       - name: Package portable ZIP
         shell: pwsh
         run: |
-          Compress-Archive -Path dist\openVideoAI.exe `
+          Compress-Archive -Path dist\openVideoAI-portable.exe `
                            -DestinationPath openVideoAI-windows-x64-portable.zip `
                            -Force
 
@@ -473,8 +504,11 @@ jobs:
           # Fallback provider: Mistral (set MISTRAL_API_KEY secret to enable).
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
+          # Fallback provider: Puter AI (free Python package, no API key needed).
+          PUTER_MODEL: gpt-4o-mini
           # Final fallback: local commit summarization (always works, no AI).
         run: |
+          pip install puter
           python scripts/generate_release_notes.py \
             --version "${{ needs.release-info.outputs.version }}" \
             --output RELEASE_NOTES.md
