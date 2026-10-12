@@ -206,6 +206,26 @@ jobs:
           $size = (Get-Item "dist\openVideoAI\openVideoAI.exe").Length / 1MB
           Write-Host "dist\openVideoAI\openVideoAI.exe  $([math]::Round($size,1)) MB"
 
+      - name: Verify onedir data directories
+        shell: pwsh
+        run: |
+          Write-Host "=== dist\openVideoAI directory structure ==="
+          Get-ChildItem "dist\openVideoAI" -Recurse -Depth 2 | Select-Object FullName, Length | Format-Table -AutoSize
+          Write-Host ""
+          Write-Host "=== Checking required paths ==="
+          @(
+            "dist\openVideoAI\UI"
+            "dist\openVideoAI\assets"
+            "dist\openVideoAI\models.json"
+            "dist\openVideoAI\_internal"
+          ) | ForEach-Object {
+            if (Test-Path $_) {
+              Write-Host "  ✓ $_ exists"
+            } else {
+              Write-Host "  ✗ $_ MISSING"
+            }
+          }
+
       - name: Build portable executable (--onefile)
         shell: pwsh
         run: |
