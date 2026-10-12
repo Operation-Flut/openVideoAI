@@ -435,6 +435,8 @@ jobs:
 
       - name: Package DMG and ZIP
         run: |
+          # Detach any stale mounted volumes for this app
+          hdiutil detach "/Volumes/openVideoAI" -quiet 2>/dev/null || true
           hdiutil create \
             -volname "openVideoAI" \
             -srcfolder "dist/openVideoAI.app" \
