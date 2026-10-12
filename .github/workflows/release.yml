@@ -214,9 +214,9 @@ jobs:
           Write-Host ""
           Write-Host "=== Checking required paths ==="
           @(
-            "dist\openVideoAI\UI"
-            "dist\openVideoAI\assets"
-            "dist\openVideoAI\models.json"
+            "dist\openVideoAI\_internal\UI"
+            "dist\openVideoAI\_internal\assets"
+            "dist\openVideoAI\_internal\models.json"
             "dist\openVideoAI\_internal"
           ) | ForEach-Object {
             if (Test-Path $_) {
