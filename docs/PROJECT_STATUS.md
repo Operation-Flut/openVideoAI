@@ -14,8 +14,9 @@ configuring enhancement options. The model catalog is documented in
 | Model management | Complete | The UI and API support browsing models and managing local downloads. |
 | Web interface and API | In progress | FastAPI routes and browser interfaces are available for model management and enhancement settings. |
 | Enhancement configuration | In progress | The UI collects options for feature areas, including color matching and LOG restoration. |
-| Media inference | Planned | End-to-end image/video processing with the cataloged models is not implemented. |
-| Processed media export | Planned | The application does not yet produce enhanced output files. |
+| Media inference | Complete | End-to-end image/video processing works (Reinhard + WCT2 neural; NLUT/DCT broken-checkpoint fail-fast). Output files produced. |
+| Processed media export | Complete | Output files written to output directory; endpoint returns result metadata. |
+| Color Matching (Match Color) | Complete | Reinhard built-in + WCT2 neural implemented; model routing, strength/preserve_luminance, reference required. NLUT/DCT registered but non-functional (checkpoint issues). |
 | Command-line interface | Planned | A CLI for running enhancement workflows from a terminal is not available yet. |
 | Batch processing | Planned | Processing multiple files in a single workflow is not available yet. |
 | Presets | Planned | Saveable and reusable enhancement presets are not available yet. |
@@ -54,8 +55,7 @@ Interactive API documentation is available at `/docs` while the app is running.
 
 - Model and feature catalog entries describe intended integrations; they do
   not guarantee that a model can currently run inside the application.
-- Enhancement controls and LOG module settings collect configuration only.
-  They do not execute inference or produce processed media.
+- Enhancement controls execute inference (Reinhard + WCT2 neural; NLUT/DCT fail-fast due to broken checkpoints). Color Matching requires reference image; missing ref raises clear error.
 - Model sizes are estimates, not verified download sizes or performance
   benchmarks. Upstream projects and checkpoints may have separate licenses.
 - Performance will depend on the eventual inference implementation, model

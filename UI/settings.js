@@ -532,7 +532,7 @@ async function populateFeatureStatus() {
         { name: 'Correct Distortion', status: 'ui-only', backend: 'OpenCV', notes: 'Lens correction only' },
         { name: 'Colorization', status: 'ui-only', backend: 'OpenCV', notes: 'Basic channel mixing' },
         { name: 'Object Removal', status: 'ui-only', backend: 'OpenCV', notes: 'Inpainting only' },
-        { name: 'Match Color', status: 'implemented', backend: 'CPU', notes: 'Reinhard transfer' },
+        { name: 'Match Color', status: 'implemented', backend: 'CPU (Reinhard + WCT2 neural)', notes: 'Reinhard + WCT2; NLUT/DCT broken-checkpoint (fail-fast)' },
         { name: 'Log Restoration', status: 'implemented', backend: 'CPU', notes: 'ITMLUT, FastLLVE' },
         { name: 'SDR to HDR', status: 'ui-only', backend: 'OpenCV', notes: 'Simulated HDR effect' },
         { name: 'Focus Fix', status: 'ui-only', backend: 'OpenCV', notes: 'Wiener deconvolution' },
