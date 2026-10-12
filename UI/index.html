@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>openVideoAI</title>
     <link rel="stylesheet" href="/ui/style.css">
+    <link rel="stylesheet" href="/ui/settings.css">
+    <link rel="stylesheet" href="/ui/about.css">
 </head>
 <body>
     <header>
@@ -36,13 +38,22 @@
                 <h2 style="font-size: 1.1rem; font-weight: 600;">Enhancement Pipeline</h2>
             </div>
 
-            <!-- Base Upscale Model (Required) -->
+            <!-- Base Upscale Model (Optional) -->
             <div class="feature-section" id="section-base">
                 <div class="feature-header">
-                    <h3>Base Upscale</h3>
-                    <span class="feature-badge required">Required</span>
+                    <div class="feature-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="baseToggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-info">
+                        <h3>Upscale</h3>
+                        <span class="feature-desc">Increase resolution with AI</span>
+                    </div>
+                    <span class="feature-badge" id="baseBadge">Enabled</span>
                 </div>
-                <div class="feature-content">
+                <div class="feature-content" id="baseContent">
                     <div class="control-group">
                         <label>Primary Model</label>
                         <select id="baseModelSelect">
@@ -50,11 +61,12 @@
                         </select>
                     </div>
                     <div class="control-group">
-                        <label>Upscale Multiplier</label>
+                        <label>Scale</label>
                         <select id="upscaleSelect">
-                            <option>2x</option>
-                            <option selected>4x</option>
-                            <option>8x</option>
+                            <option value="1x">1x (original resolution)</option>
+                            <option value="2x">2x</option>
+                            <option value="4x" selected>4x</option>
+                            <option value="8x">8x</option>
                         </select>
                     </div>
                 </div>
@@ -84,6 +96,13 @@
                             <option value="">No face recovery models</option>
                         </select>
                     </div>
+                    <div class="control-group">
+                        <label>Fidelity: <span id="faceFidelityValue">50</span>%</label>
+                        <input type="range" min="0" max="100" value="50" id="faceFidelity"
+                               title="CodeFormer w-factor: 0 = stronger restoration (new details), 100 = high fidelity to the original. Increase it for extreme situations (motion blur, open mouth, extreme poses)."
+                               oninput="document.getElementById('faceFidelityValue').innerText = this.value">
+                        <div class="slider-hint">0 = more detail &nbsp;·&nbsp; 100 = faithful to original</div>
+                    </div>
                 </div>
             </div>
 
@@ -112,8 +131,8 @@
                         </select>
                     </div>
                     <div class="control-group">
-                        <label>Strength: <span id="sharpenVal">50</span>%</label>
-                        <input type="range" min="0" max="100" value="50" id="sharpenStrength" oninput="document.getElementById('sharpenVal').innerText = this.value">
+                        <label>Strength: <span id="sharpenVal">100</span>%</label>
+                        <input type="range" min="0" max="100" value="100" id="sharpenStrength" oninput="document.getElementById('sharpenVal').innerText = this.value">
                     </div>
                 </div>
             </div>
@@ -233,6 +252,20 @@
                         <input id="colorReferenceInput" type="file" accept="image/*">
                         <span class="feature-desc" id="colorReferenceName">No reference image selected</span>
                     </div>
+                    <div class="control-group">
+                        <label>Strength: <span id="colorVal">100</span>%</label>
+                        <input type="range" min="0" max="100" value="100" id="colorStrength" oninput="document.getElementById('colorVal').innerText = this.value">
+                    </div>
+                    <div class="control-group toggle-container">
+                        <div>
+                            <label style="margin-bottom: 0;">Preserve Original Exposure</label>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">Match only color, keep the target's brightness</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked id="colorPreserveLuminance">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -285,6 +318,188 @@
                         <ol id="logPipelineSteps" class="feature-desc"></ol>
                     </div>
                     <p class="feature-desc">Settings are collected for the enhancement request. LOG processing is not implemented yet.</p>
+                </div>
+            </div>
+
+            <div class="feature-separator"></div>
+
+            <!-- Low-Light Enhancement -->
+            <div class="feature-section" id="section-lowlight" data-feature="Low-Light Enhancement">
+                <div class="feature-header">
+                    <div class="feature-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="lowlightToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-info">
+                        <h3>Low-Light Enhancement</h3>
+                        <span class="feature-desc">Restore underexposed or night footage</span>
+                    </div>
+                    <span class="feature-badge" id="lowlightBadge"></span>
+                </div>
+                <div class="feature-content" id="lowlightContent">
+                    <div class="control-group">
+                        <label>Enhancement Model</label>
+                        <select id="lowlightModelSelect">
+                            <option value="Zero-DCE">Zero-DCE</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Strength: <span id="lowlightStrengthValue">70</span>%</label>
+                        <input type="range" min="0" max="100" value="70" id="lowlightStrength" oninput="document.getElementById('lowlightStrengthValue').innerText = this.value">
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-separator"></div>
+
+            <!-- SDR to HDR -->
+            <div class="feature-section" id="section-sdrtohdr" data-feature="SDR to HDR">
+                <div class="feature-header">
+                    <div class="feature-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="sdrtohdrToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-info">
+                        <h3>SDR to HDR</h3>
+                        <span class="feature-desc">Convert standard to high dynamic range</span>
+                    </div>
+                    <span class="feature-badge" id="sdrtohdrBadge"></span>
+                </div>
+                <div class="feature-content" id="sdrtohdrContent">
+                    <div class="control-group">
+                        <label>Conversion Model</label>
+                        <select id="sdrtohdrModelSelect">
+                            <option value="HDRNet">HDRNet</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Target Format</label>
+                        <select id="sdrtohdrFormat">
+                            <option value="HDR10">HDR10</option>
+                            <option value="HDR10+">HDR10+</option>
+                            <option value="HLG">HLG</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-separator"></div>
+
+            <!-- Flat Color Profile -->
+            <div class="feature-section" id="section-flatprofile" data-feature="Flat Color Profile">
+                <div class="feature-header">
+                    <div class="feature-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="flatprofileToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-info">
+                        <h3>Flat Color Profile</h3>
+                        <span class="feature-desc">Correct over/underexposure, warmth, color spill</span>
+                    </div>
+                    <span class="feature-badge" id="flatprofileBadge"></span>
+                </div>
+                <div class="feature-content" id="flatprofileContent">
+                    <div class="control-group">
+                        <label>Color Correction Model</label>
+                        <select id="flatprofileModelSelect">
+                            <option value="ColorGrade">ColorGrade</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Flatness: <span id="flatprofileFlatnessValue">50</span>%</label>
+                        <input type="range" min="0" max="100" value="50" id="flatprofileFlatness" oninput="document.getElementById('flatprofileFlatnessValue').innerText = this.value">
+                    </div>
+                    <div class="control-group">
+                        <label>Warmth Correction: <span id="flatprofileWarmthValue">70</span>%</label>
+                        <input type="range" min="0" max="100" value="70" id="flatprofileWarmth" oninput="document.getElementById('flatprofileWarmthValue').innerText = this.value">
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-separator"></div>
+
+            <!-- Overexposure & Contrast Fix -->
+            <div class="feature-section" id="section-overexposure" data-feature="Overexposure & Contrast Fix">
+                <div class="feature-header">
+                    <div class="feature-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="overexposureToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-info">
+                        <h3>Overexposure & Contrast Fix</h3>
+                        <span class="feature-desc">Fix blown highlights and crushed shadows</span>
+                    </div>
+                    <span class="feature-badge" id="overexposureBadge"></span>
+                </div>
+                <div class="feature-content" id="overexposureContent">
+                    <div class="control-group">
+                        <label>Fix Model</label>
+                        <select id="overexposureModelSelect">
+                            <option value="AutoEnhance">AutoEnhance</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Highlight Recovery: <span id="overexposureHighlightValue">50</span>%</label>
+                        <input type="range" min="0" max="100" value="50" id="overexposureHighlight" oninput="document.getElementById('overexposureHighlightValue').innerText = this.value">
+                    </div>
+                    <div class="control-group">
+                        <label>Shadow Boost: <span id="overexposureShadowValue">50</span>%</label>
+                        <input type="range" min="0" max="100" value="50" id="overexposureShadow" oninput="document.getElementById('overexposureShadowValue').innerText = this.value">
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-separator"></div>
+
+            <!-- Reencoding -->
+            <div class="feature-section" id="section-reencode" data-feature="Reencoding">
+                <div class="feature-header">
+                    <div class="feature-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="reencodeToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-info">
+                        <h3>Reencoding</h3>
+                        <span class="feature-desc">Transcode with FFMPEG or Handbrake</span>
+                    </div>
+                    <span class="feature-badge" id="reencodeBadge"></span>
+                </div>
+                <div class="feature-content" id="reencodeContent">
+                    <div class="control-group">
+                        <label>Engine</label>
+                        <select id="reencodeEngineSelect">
+                            <option value="ffmpeg">FFMPEG</option>
+                            <option value="handbrake">Handbrake</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Preset</label>
+                        <select id="reencodeModelSelect">
+                            <option value="h264_fast">H.264 Fast</option>
+                            <option value="h264_quality">H.264 Quality</option>
+                            <option value="h265_fast">H.265 Fast</option>
+                            <option value="h265_quality">H.265 Quality</option>
+                            <option value="web_optimized">Web Optimized</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Bitrate / Quality</label>
+                        <select id="reencodeQuality">
+                            <option value="high">High (Smaller file)</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="low">Low (Larger file)</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 

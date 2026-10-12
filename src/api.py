@@ -28,6 +28,11 @@ try:
 except ImportError:
     torch = None
 
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
 from src.models.initialize import (
     get_model_manager, initialize_models, get_model_status,
     get_downloaded_models, get_available_models, download_model,
@@ -191,7 +196,7 @@ async def get_implemented_features():
         "Sharpen / Deblur": {"key": "sharpen", "required": False, "hasToggle": True, "hasStrength": True},
         "Denoise": {"key": "denoise", "required": False, "hasToggle": True, "hasStrength": True},
         "Frame Interpolation": {"key": "frame", "required": False, "hasToggle": True, "hasStrength": False},
-        "Match Color": {"key": "color", "required": False, "hasToggle": True, "hasStrength": False, "requiresReferenceImage": True},
+        "Match Color": {"key": "color", "required": False, "hasToggle": True, "hasStrength": True, "requiresReferenceImage": True},
         "Log Restoration": {"key": "log", "required": False, "hasToggle": True, "hasStrength": False},
     }
     return implemented
@@ -451,17 +456,22 @@ async def process_upscale_file(
     
     if not (is_image or is_video):
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
-    
-    # Get model path
-    model_path = get_model_path(model_name)
-    if not model_path:
-        available = list_models()
-        downloaded = [m for m in available if m['downloaded']]
-        if downloaded:
-            model_path = downloaded[0]['path']
-            model_name = downloaded[0]['name']
-        else:
-            raise HTTPException(status_code=400, detail="No upscale models downloaded")
+
+    # scale=1 is a passthrough — no model required
+    passthrough = (scale == 1)
+
+    # Get model path (only needed when actually upscaling)
+    model_path = None
+    if not passthrough:
+        model_path = get_model_path(model_name)
+        if not model_path:
+            available = list_models()
+            downloaded = [m for m in available if m['downloaded']]
+            if downloaded:
+                model_path = downloaded[0]['path']
+                model_name = downloaded[0]['name']
+            else:
+                raise HTTPException(status_code=400, detail="No upscale models downloaded. Set scale to 1x or download a model first.")
     
     import uuid
     
@@ -536,7 +546,7 @@ async def process_upscale_file(
                 "webp": ".webp",
                 "tiff": ".tiff"
             }.get(selected_format, input_suffix)
-        output_filename = f"{uuid.uuid4()}_upscaled_{scale}x_{Path(safe_filename).stem}{output_suffix}"
+        output_filename = f"{uuid.uuid4()}_processed_{Path(safe_filename).stem}{output_suffix}"
         output_path = temp_dir / output_filename
         
         # Process in background
@@ -590,31 +600,84 @@ async def process_upscale_file(
                         # Force yield to ensure visibility across threads
                         import time
                         time.sleep(0.001)
-                
+
                 # Lazy load processing modules
                 _load_processing()
                 if not PROCESSING_AVAILABLE:
                     raise RuntimeError("Processing modules not available")
-                
-                if is_image:
-                    result = upscale_image_fn(
-                        str(input_path), str(output_path),
-                        model_name=model_name, scale=scale, device=selected_device,
-                        tile_size=tile_size,
-                        fp16=bool(saved_settings.get("fp16Enabled", True)),
-                        jpg_quality=quality,
-                        progress_callback=progress_cb
-                    )
+
+                if passthrough:
+                    # scale=1: just copy/convert without upscaling
+                    import shutil
+                    if is_image:
+                        progress_cb(10)
+                        # For images, we may want to re-encode with different format/quality
+                        if selected_format != 'source' and selected_format != input_suffix.lstrip('.'):
+                            # Need to re-encode
+                            img = cv2.imread(str(input_path))
+                            write_params = []
+                            if selected_format in ('jpg', 'jpeg'):
+                                write_params = [cv2.IMWRITE_JPEG_QUALITY, quality]
+                            cv2.imwrite(str(output_path), img, write_params)
+                        else:
+                            shutil.copy2(input_path, output_path)
+                        progress_cb(100)
+                    else:
+                        # Video passthrough - copy or re-encode to mp4
+                        progress_cb(10)
+                        if selected_format == 'mp4' or selected_format == 'source':
+                            shutil.copy2(input_path, output_path)
+                        else:
+                            # Re-encode with cv2
+                            cap = cv2.VideoCapture(str(input_path))
+                            fps = cap.get(cv2.CAP_PROP_FPS)
+                            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                            out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
+                            frame_count = 0
+                            while True:
+                                ret, frame = cap.read()
+                                if not ret:
+                                    break
+                                out.write(frame)
+                                frame_count += 1
+                                if frame_count % 30 == 0:
+                                    progress_cb(10 + int(frame_count / total_frames * 80))
+                            cap.release()
+                            out.release()
+                        progress_cb(100)
+
+                    result = {
+                        'success': True,
+                        'input_path': str(input_path),
+                        'output_path': str(output_path),
+                        'scale_factor': 1,
+                        'model': 'passthrough',
+                        'passthrough': True
+                    }
                 else:
-                    result = upscale_video_fn(
-                        str(input_path), str(output_path),
-                        model_name=model_name, scale=scale, device=selected_device,
-                        tile_size=tile_size,
-                        fp16=bool(saved_settings.get("fp16Enabled", True)),
-                        jpg_quality=quality,
-                        progress_callback=progress_cb
-                    )
-                
+                    # Normal upscale
+                    if is_image:
+                        result = upscale_image_fn(
+                            str(input_path), str(output_path),
+                            model_name=model_name, scale=scale, device=selected_device,
+                            tile_size=tile_size,
+                            fp16=bool(saved_settings.get("fp16Enabled", True)),
+                            jpg_quality=quality,
+                            progress_callback=progress_cb
+                        )
+                    else:
+                        result = upscale_video_fn(
+                            str(input_path), str(output_path),
+                            model_name=model_name, scale=scale, device=selected_device,
+                            tile_size=tile_size,
+                            fp16=bool(saved_settings.get("fp16Enabled", True)),
+                            jpg_quality=quality,
+                            progress_callback=progress_cb
+                        )
+
                 process_progress[task_id] = {
                     'status': 'completed',
                     'result': result,
@@ -692,6 +755,833 @@ async def get_processing_result(task_id: str):
         raise HTTPException(status_code=404, detail="Result file not found")
     
     return FileResponse(output_path, filename=Path(output_path).name)
+
+
+# ============================================================================
+# COMPREHENSIVE PROCESSING ENDPOINTS
+# ============================================================================
+
+@app.get("/api/processing/features")
+async def get_processing_features():
+    """Get all available processing features with their models"""
+    from src.processing import (
+        UPSCALE_MODELS, FACE_MODELS, SHARPEN_MODELS, DENOISE_MODELS,
+        FRAME_INTERP_MODELS, SLOWMO_MODELS, REENCODING_PRESETS
+    )
+    
+    return {
+        "upscale": {"models": list(UPSCALE_MODELS.keys())},
+        "face_recovery": {"models": list(FACE_MODELS.keys())},
+        "sharpen": {"models": list(SHARPEN_MODELS.keys())},
+        "denoise": {"models": list(DENOISE_MODELS.keys())},
+        "frame_interpolation": {"models": list(FRAME_INTERP_MODELS.keys())},
+        "slow_motion": {"models": list(SLOWMO_MODELS.keys())},
+        "colorization": {"models": ["DeOldify"]},
+        "match_color": {"models": ["Reinhard Transfer", "WCT2", "NLUT", "Deep Color Transfer"]},
+        "low_light": {"models": ["Zero-DCE"]},
+        "distortion_correction": {"models": ["LensCorrection"]},
+        "log_restoration": {"models": ["ITMLUT", "FastLLVE"]},
+        "sdr_to_hdr": {"models": ["HDRNet"]},
+        "object_removal": {"models": ["LaMa"]},
+        "focus_fix": {"models": ["DeblurGAN"]},
+        "overexposure_fix": {"models": ["AutoEnhance"]},
+        "flat_color_profile": {"models": ["ColorGrade"]},
+        "reencoding": {
+            "engines": ["ffmpeg", "handbrake"],
+            "ffmpeg_presets": list(REENCODING_PRESETS.keys()),
+        }
+    }
+
+
+@app.post("/api/processing/face-recovery/file")
+@app.post("/api/processing/face/file")
+async def process_face_recovery_file(
+    file: UploadFile = File(...),
+    model_name: str = Form("CodeFormer"),
+    fidelity_weight: float = Form(0.5),
+    device: Optional[str] = Form(None),
+):
+    """Apply face recovery to uploaded image or video"""
+    from src.processing import FaceRecoveryPipeline, get_face_model
+    
+    _load_processing()
+    if not PROCESSING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Processing not available")
+    
+    if _shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server is shutting down")
+    
+    # Save uploaded file
+    temp_dir = TEMP_PROCESSING_DIR
+    temp_dir.mkdir(exist_ok=True)
+    
+    safe_filename = Path(file.filename or "upload").name
+    input_filename = f"{uuid.uuid4()}_{safe_filename}"
+    input_path = temp_dir / input_filename
+    
+    content = await file.read()
+    with open(input_path, 'wb') as f:
+        f.write(content)
+    
+    # Determine output path
+    output_filename = f"{uuid.uuid4()}_face_restored_{Path(safe_filename).stem}{Path(safe_filename).suffix}"
+    output_path = temp_dir / output_filename
+    
+    # Get selected device
+    saved_settings = {**DEFAULT_SETTINGS, **_read_saved_settings()}
+    selected_device = system_resources.resolve_default_device(
+        device or saved_settings.get("computeBackend", "auto")
+    )
+    
+    def process_task():
+        try:
+            pipeline = FaceRecoveryPipeline(
+                model_name=model_name,
+                device=selected_device,
+                fidelity_weight=fidelity_weight
+            )
+            pipeline.load_model(get_face_model(model_name))
+            result = pipeline.process(str(input_path), str(output_path))
+            process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
+        except ProcessingAborted as e:
+            process_progress[task_id] = {'status': 'aborted', 'error': str(e), 'progress': 0}
+        except Exception as e:
+            process_progress[task_id] = {'status': 'failed', 'error': str(e), 'progress': 0}
+        finally:
+            try:
+                input_path.unlink()
+            except:
+                pass
+    
+    task_id = str(uuid.uuid4())
+    process_progress[task_id] = {'status': 'processing', 'progress': 0}
+    
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, process_task)
+    process_tasks[task_id] = task
+    
+    return {"task_id": task_id, "status": "started"}
+
+
+@app.post("/api/processing/sharpen/file")
+async def process_sharpen_file(
+    file: UploadFile = File(...),
+    model_name: str = Form("NAFNet"),
+    strength: float = Form(1.0),
+    overlap: Optional[int] = Form(None),
+    unsharp_amount: Optional[float] = Form(None),
+    device: Optional[str] = Form(None),
+):
+    """Apply sharpening/deblurring to uploaded image or video"""
+    from src.processing import SharpenPipeline, get_sharpen_model, list_sharpen_models
+    
+    _load_processing()
+    if not PROCESSING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Processing not available")
+    
+    if _shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server is shutting down")
+    
+    saved_settings = {**DEFAULT_SETTINGS, **_read_saved_settings()}
+    if overlap is None:
+        overlap = int(saved_settings.get("sharpenOverlap", 128))
+    if unsharp_amount is None:
+        unsharp_amount = float(saved_settings.get("sharpenUnsharpAmount", 0.5))
+
+    # Fail fast instead of silently falling back to classical sharpening:
+    # a missing weights file must never produce a "sharpened" but still blurry
+    # image without the user knowing.
+    model_path = get_sharpen_model(model_name)
+    if not model_path:
+        available = list_sharpen_models()
+        names = [m["name"] for m in available if m["downloaded"]]
+        detail = (
+            f"Sharpening model '{model_name}' is not downloaded. "
+            + (f"Installed: {', '.join(names)}." if names
+               else "No sharpen models are installed - download one from the model manager.")
+        )
+        raise HTTPException(status_code=400, detail=detail)
+    
+    temp_dir = TEMP_PROCESSING_DIR
+    temp_dir.mkdir(exist_ok=True)
+    
+    safe_filename = Path(file.filename or "upload").name
+    input_filename = f"{uuid.uuid4()}_{safe_filename}"
+    input_path = temp_dir / input_filename
+    
+    content = await file.read()
+    with open(input_path, 'wb') as f:
+        f.write(content)
+    
+    output_filename = f"{uuid.uuid4()}_sharpened_{Path(safe_filename).stem}{Path(safe_filename).suffix}"
+    output_path = temp_dir / output_filename
+    
+    selected_device = system_resources.resolve_default_device(
+        device or saved_settings.get("computeBackend", "auto")
+    )
+    
+    def process_task():
+        try:
+            pipeline = SharpenPipeline(model_name=model_name, device=selected_device,
+                                       strength=strength, overlap=overlap,
+                                       unsharp_amount=unsharp_amount)
+            pipeline.load_model(model_path)
+            result = pipeline.process(str(input_path), str(output_path))
+            result.setdefault('overlap', overlap)
+            result.setdefault('window', 'hamming')
+            result.setdefault('unsharp_amount', unsharp_amount)
+            result.setdefault('model_path', model_path)
+            process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
+        except ProcessingAborted as e:
+            process_progress[task_id] = {'status': 'aborted', 'error': str(e), 'progress': 0}
+        except Exception as e:
+            process_progress[task_id] = {'status': 'failed', 'error': str(e), 'progress': 0}
+        finally:
+            try:
+                input_path.unlink()
+            except:
+                pass
+    
+    task_id = str(uuid.uuid4())
+    process_progress[task_id] = {'status': 'processing', 'progress': 0}
+    
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, process_task)
+    process_tasks[task_id] = task
+    
+    return {"task_id": task_id, "status": "started"}
+
+
+@app.post("/api/processing/denoise/file")
+async def process_denoise_file(
+    file: UploadFile = File(...),
+    model_name: str = Form("SCUNet"),
+    strength: float = Form(0.5),
+    device: Optional[str] = Form(None),
+):
+    """Apply denoising to uploaded image or video"""
+    from src.processing import DenoisePipeline, get_denoise_model
+    
+    _load_processing()
+    if not PROCESSING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Processing not available")
+    
+    if _shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server is shutting down")
+    
+    temp_dir = TEMP_PROCESSING_DIR
+    temp_dir.mkdir(exist_ok=True)
+    
+    safe_filename = Path(file.filename or "upload").name
+    input_filename = f"{uuid.uuid4()}_{safe_filename}"
+    input_path = temp_dir / input_filename
+    
+    content = await file.read()
+    with open(input_path, 'wb') as f:
+        f.write(content)
+    
+    output_filename = f"{uuid.uuid4()}_denoised_{Path(safe_filename).stem}{Path(safe_filename).suffix}"
+    output_path = temp_dir / output_filename
+    
+    saved_settings = {**DEFAULT_SETTINGS, **_read_saved_settings()}
+    selected_device = system_resources.resolve_default_device(
+        device or saved_settings.get("computeBackend", "auto")
+    )
+    
+    def process_task():
+        try:
+            pipeline = DenoisePipeline(model_name=model_name, device=selected_device, strength=strength)
+            pipeline.load_model(get_denoise_model(model_name))
+            result = pipeline.process(str(input_path), str(output_path))
+            process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
+        except ProcessingAborted as e:
+            process_progress[task_id] = {'status': 'aborted', 'error': str(e), 'progress': 0}
+        except Exception as e:
+            process_progress[task_id] = {'status': 'failed', 'error': str(e), 'progress': 0}
+        finally:
+            try:
+                input_path.unlink()
+            except:
+                pass
+    
+    task_id = str(uuid.uuid4())
+    process_progress[task_id] = {'status': 'processing', 'progress': 0}
+    
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, process_task)
+    process_tasks[task_id] = task
+    
+    return {"task_id": task_id, "status": "started"}
+
+
+@app.post("/api/processing/frame-interpolation/file")
+async def process_frame_interpolation_file(
+    file: UploadFile = File(...),
+    model_name: str = Form("RIFE"),
+    multiplier: int = Form(2),
+    device: Optional[str] = Form(None),
+):
+    """Apply frame interpolation to uploaded video"""
+    from src.processing import FrameInterpolationPipeline, get_frame_interp_model
+    
+    _load_processing()
+    if not PROCESSING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Processing not available")
+    
+    if _shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server is shutting down")
+    
+    # Check file type
+    if not file.content_type.startswith('video/'):
+        raise HTTPException(status_code=400, detail="Frame interpolation only supports video files")
+    
+    temp_dir = TEMP_PROCESSING_DIR
+    temp_dir.mkdir(exist_ok=True)
+    
+    safe_filename = Path(file.filename or "upload").name
+    input_filename = f"{uuid.uuid4()}_{safe_filename}"
+    input_path = temp_dir / input_filename
+    
+    content = await file.read()
+    with open(input_path, 'wb') as f:
+        f.write(content)
+    
+    output_filename = f"{uuid.uuid4()}_interp_{multiplier}x_{Path(safe_filename).stem}.mp4"
+    output_path = temp_dir / output_filename
+    
+    saved_settings = {**DEFAULT_SETTINGS, **_read_saved_settings()}
+    selected_device = system_resources.resolve_default_device(
+        device or saved_settings.get("computeBackend", "auto")
+    )
+    
+    def process_task():
+        try:
+            pipeline = FrameInterpolationPipeline(
+                model_name=model_name,
+                device=selected_device,
+                multiplier=multiplier
+            )
+            pipeline.load_model(get_frame_interp_model(model_name))
+            result = pipeline.process(str(input_path), str(output_path))
+            process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
+        except ProcessingAborted as e:
+            process_progress[task_id] = {'status': 'aborted', 'error': str(e), 'progress': 0}
+        except Exception as e:
+            process_progress[task_id] = {'status': 'failed', 'error': str(e), 'progress': 0}
+        finally:
+            try:
+                input_path.unlink()
+            except:
+                pass
+    
+    task_id = str(uuid.uuid4())
+    process_progress[task_id] = {'status': 'processing', 'progress': 0}
+    
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, process_task)
+    process_tasks[task_id] = task
+    
+    return {"task_id": task_id, "status": "started"}
+
+
+@app.post("/api/processing/slow-motion/file")
+async def process_slow_motion_file(
+    file: UploadFile = File(...),
+    model_name: str = Form("RIFE-SloMo"),
+    slowdown_factor: float = Form(4.0),
+    device: Optional[str] = Form(None),
+):
+    """Create slow-motion video from uploaded video"""
+    from src.processing import SlowMotionPipeline
+    
+    _load_processing()
+    if not PROCESSING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Processing not available")
+    
+    if _shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server is shutting down")
+    
+    if not file.content_type.startswith('video/'):
+        raise HTTPException(status_code=400, detail="Slow motion only supports video files")
+    
+    temp_dir = TEMP_PROCESSING_DIR
+    temp_dir.mkdir(exist_ok=True)
+    
+    safe_filename = Path(file.filename or "upload").name
+    input_filename = f"{uuid.uuid4()}_{safe_filename}"
+    input_path = temp_dir / input_filename
+    
+    content = await file.read()
+    with open(input_path, 'wb') as f:
+        f.write(content)
+    
+    output_filename = f"{uuid.uuid4()}_slowmo_{slowdown_factor}x_{Path(safe_filename).stem}.mp4"
+    output_path = temp_dir / output_filename
+    
+    saved_settings = {**DEFAULT_SETTINGS, **_read_saved_settings()}
+    selected_device = system_resources.resolve_default_device(
+        device or saved_settings.get("computeBackend", "auto")
+    )
+    
+    def process_task():
+        try:
+            pipeline = SlowMotionPipeline(
+                model_name=model_name,
+                device=selected_device,
+                slowdown_factor=slowdown_factor
+            )
+            pipeline.load_model()
+            result = pipeline.process(str(input_path), str(output_path))
+            process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
+        except ProcessingAborted as e:
+            process_progress[task_id] = {'status': 'aborted', 'error': str(e), 'progress': 0}
+        except Exception as e:
+            process_progress[task_id] = {'status': 'failed', 'error': str(e), 'progress': 0}
+        finally:
+            try:
+                input_path.unlink()
+            except:
+                pass
+    
+    task_id = str(uuid.uuid4())
+    process_progress[task_id] = {'status': 'processing', 'progress': 0}
+    
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, process_task)
+    process_tasks[task_id] = task
+    
+    return {"task_id": task_id, "status": "started"}
+
+
+@app.post("/api/processing/match-color/file")
+async def process_match_color_file(
+    file: UploadFile = File(...),
+    reference: Optional[UploadFile] = File(None),
+    model_name: str = Form("Reinhard Transfer"),
+    strength: float = Form(1.0),
+    preserve_luminance: bool = Form(True),
+    device: Optional[str] = Form(None),
+):
+    """Match colors from reference image to target"""
+    from src.processing import MatchColorPipeline, get_match_color_model
+    
+    _load_processing()
+    if not PROCESSING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Processing not available")
+    
+    if _shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server is shutting down")
+    
+    temp_dir = TEMP_PROCESSING_DIR
+    temp_dir.mkdir(exist_ok=True)
+    
+    # Save target file
+    safe_filename = Path(file.filename or "upload").name
+    input_filename = f"{uuid.uuid4()}_{safe_filename}"
+    input_path = temp_dir / input_filename
+    
+    content = await file.read()
+    with open(input_path, 'wb') as f:
+        f.write(content)
+    
+    # Save reference file if provided
+    ref_path = None
+    if reference:
+        ref_filename = f"{uuid.uuid4()}_ref_{Path(reference.filename or 'reference').name}"
+        ref_path = temp_dir / ref_filename
+        ref_content = await reference.read()
+        with open(ref_path, 'wb') as f:
+            f.write(ref_content)
+    
+    output_filename = f"{uuid.uuid4()}_color_matched_{Path(safe_filename).stem}{Path(safe_filename).suffix}"
+    output_path = temp_dir / output_filename
+
+    saved_settings = {**DEFAULT_SETTINGS, **_read_saved_settings()}
+    selected_device = system_resources.resolve_default_device(
+        device or saved_settings.get("computeBackend", "auto")
+    )
+
+    def process_task():
+        try:
+            pipeline = MatchColorPipeline(
+                model_name=model_name,
+                device=selected_device,
+                strength=strength,
+                preserve_luminance=preserve_luminance,
+            )
+            pipeline.load_model(get_match_color_model(model_name))
+            result = pipeline.process(
+                str(input_path),
+                str(output_path),
+                reference_path=str(ref_path) if ref_path else None
+            )
+            process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
+        except ProcessingAborted as e:
+            process_progress[task_id] = {'status': 'aborted', 'error': str(e), 'progress': 0}
+        except Exception as e:
+            process_progress[task_id] = {'status': 'failed', 'error': str(e), 'progress': 0}
+        finally:
+            try:
+                input_path.unlink()
+                if ref_path:
+                    ref_path.unlink()
+            except:
+                pass
+    
+    task_id = str(uuid.uuid4())
+    process_progress[task_id] = {'status': 'processing', 'progress': 0}
+    
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, process_task)
+    process_tasks[task_id] = task
+    
+    return {"task_id": task_id, "status": "started"}
+
+
+@app.post("/api/processing/low-light/file")
+async def process_low_light_file(
+    file: UploadFile = File(...),
+    model_name: str = Form("Zero-DCE"),
+    strength: float = Form(0.7),
+    device: Optional[str] = Form(None),
+):
+    """Enhance low-light images or videos"""
+    from src.processing import LowLightEnhancementPipeline
+    
+    _load_processing()
+    if not PROCESSING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Processing not available")
+    
+    if _shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server is shutting down")
+    
+    temp_dir = TEMP_PROCESSING_DIR
+    temp_dir.mkdir(exist_ok=True)
+    
+    safe_filename = Path(file.filename or "upload").name
+    input_filename = f"{uuid.uuid4()}_{safe_filename}"
+    input_path = temp_dir / input_filename
+    
+    content = await file.read()
+    with open(input_path, 'wb') as f:
+        f.write(content)
+    
+    output_filename = f"{uuid.uuid4()}_lowlight_{Path(safe_filename).stem}{Path(safe_filename).suffix}"
+    output_path = temp_dir / output_filename
+    
+    def process_task():
+        try:
+            pipeline = LowLightEnhancementPipeline(model_name=model_name, strength=strength)
+            pipeline.load_model()
+            result = pipeline.process(str(input_path), str(output_path))
+            process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
+        except ProcessingAborted as e:
+            process_progress[task_id] = {'status': 'aborted', 'error': str(e), 'progress': 0}
+        except Exception as e:
+            process_progress[task_id] = {'status': 'failed', 'error': str(e), 'progress': 0}
+        finally:
+            try:
+                input_path.unlink()
+            except:
+                pass
+    
+    task_id = str(uuid.uuid4())
+    process_progress[task_id] = {'status': 'processing', 'progress': 0}
+    
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, process_task)
+    process_tasks[task_id] = task
+    
+    return {"task_id": task_id, "status": "started"}
+
+
+@app.post("/api/processing/log-restoration/file")
+async def process_log_restoration_file(
+    file: UploadFile = File(...),
+    model_name: str = Form("ITMLUT"),
+    color_space_target: str = Form("Rec.709"),
+    device: Optional[str] = Form(None),
+):
+    """Restore LOG footage to standard color space"""
+    from src.processing import LogRestorationPipeline
+    
+    _load_processing()
+    if not PROCESSING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Processing not available")
+    
+    if _shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server is shutting down")
+    
+    temp_dir = TEMP_PROCESSING_DIR
+    temp_dir.mkdir(exist_ok=True)
+    
+    safe_filename = Path(file.filename or "upload").name
+    input_filename = f"{uuid.uuid4()}_{safe_filename}"
+    input_path = temp_dir / input_filename
+    
+    content = await file.read()
+    with open(input_path, 'wb') as f:
+        f.write(content)
+    
+    output_filename = f"{uuid.uuid4()}_log_restored_{Path(safe_filename).stem}{Path(safe_filename).suffix}"
+    output_path = temp_dir / output_filename
+    
+    def process_task():
+        try:
+            pipeline = LogRestorationPipeline(
+                model_name=model_name,
+                color_space_target=color_space_target
+            )
+            pipeline.load_model()
+            result = pipeline.process(str(input_path), str(output_path))
+            process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
+        except ProcessingAborted as e:
+            process_progress[task_id] = {'status': 'aborted', 'error': str(e), 'progress': 0}
+        except Exception as e:
+            process_progress[task_id] = {'status': 'failed', 'error': str(e), 'progress': 0}
+        finally:
+            try:
+                input_path.unlink()
+            except:
+                pass
+    
+    task_id = str(uuid.uuid4())
+    process_progress[task_id] = {'status': 'processing', 'progress': 0}
+    
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, process_task)
+    process_tasks[task_id] = task
+    
+    return {"task_id": task_id, "status": "started"}
+
+
+@app.post("/api/processing/sdr-to-hdr/file")
+async def process_sdr_to_hdr_file(
+    file: UploadFile = File(...),
+    model_name: str = Form("HDRNet"),
+    target_format: str = Form("HDR10"),
+    device: Optional[str] = Form(None),
+):
+    """Convert SDR to HDR"""
+    from src.processing import SDRtoHDRPipeline
+    
+    _load_processing()
+    if not PROCESSING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Processing not available")
+    
+    if _shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server is shutting down")
+    
+    temp_dir = TEMP_PROCESSING_DIR
+    temp_dir.mkdir(exist_ok=True)
+    
+    safe_filename = Path(file.filename or "upload").name
+    input_filename = f"{uuid.uuid4()}_{safe_filename}"
+    input_path = temp_dir / input_filename
+    
+    content = await file.read()
+    with open(input_path, 'wb') as f:
+        f.write(content)
+    
+    output_filename = f"{uuid.uuid4()}_hdr_{Path(safe_filename).stem}{Path(safe_filename).suffix}"
+    output_path = temp_dir / output_filename
+    
+    def process_task():
+        try:
+            pipeline = SDRtoHDRPipeline(model_name=model_name, target_format=target_format)
+            pipeline.load_model()
+            result = pipeline.process(str(input_path), str(output_path))
+            process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
+        except ProcessingAborted as e:
+            process_progress[task_id] = {'status': 'aborted', 'error': str(e), 'progress': 0}
+        except Exception as e:
+            process_progress[task_id] = {'status': 'failed', 'error': str(e), 'progress': 0}
+        finally:
+            try:
+                input_path.unlink()
+            except:
+                pass
+    
+    task_id = str(uuid.uuid4())
+    process_progress[task_id] = {'status': 'processing', 'progress': 0}
+    
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, process_task)
+    process_tasks[task_id] = task
+    
+    return {"task_id": task_id, "status": "started"}
+
+
+@app.post("/api/processing/overexposure-fix/file")
+async def process_overexposure_fix_file(
+    file: UploadFile = File(...),
+    model_name: str = Form("AutoEnhance"),
+    device: Optional[str] = Form(None),
+):
+    """Fix overexposure and contrast issues"""
+    from src.processing import OverexposureFixPipeline
+    
+    _load_processing()
+    if not PROCESSING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Processing not available")
+    
+    if _shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server is shutting down")
+    
+    temp_dir = TEMP_PROCESSING_DIR
+    temp_dir.mkdir(exist_ok=True)
+    
+    safe_filename = Path(file.filename or "upload").name
+    input_filename = f"{uuid.uuid4()}_{safe_filename}"
+    input_path = temp_dir / input_filename
+    
+    content = await file.read()
+    with open(input_path, 'wb') as f:
+        f.write(content)
+    
+    output_filename = f"{uuid.uuid4()}_fixed_{Path(safe_filename).stem}{Path(safe_filename).suffix}"
+    output_path = temp_dir / output_filename
+    
+    def process_task():
+        try:
+            pipeline = OverexposureFixPipeline(model_name=model_name)
+            pipeline.load_model()
+            result = pipeline.process(str(input_path), str(output_path))
+            process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
+        except ProcessingAborted as e:
+            process_progress[task_id] = {'status': 'aborted', 'error': str(e), 'progress': 0}
+        except Exception as e:
+            process_progress[task_id] = {'status': 'failed', 'error': str(e), 'progress': 0}
+        finally:
+            try:
+                input_path.unlink()
+            except:
+                pass
+    
+    task_id = str(uuid.uuid4())
+    process_progress[task_id] = {'status': 'processing', 'progress': 0}
+    
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, process_task)
+    process_tasks[task_id] = task
+    
+    return {"task_id": task_id, "status": "started"}
+
+
+@app.post("/api/processing/flat-profile/file")
+async def process_flat_profile_file(
+    file: UploadFile = File(...),
+    model_name: str = Form("ColorGrade"),
+    device: Optional[str] = Form(None),
+):
+    """Apply flat color profile for color correction"""
+    from src.processing import FlatColorProfilePipeline
+    
+    _load_processing()
+    if not PROCESSING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Processing not available")
+    
+    if _shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server is shutting down")
+    
+    temp_dir = TEMP_PROCESSING_DIR
+    temp_dir.mkdir(exist_ok=True)
+    
+    safe_filename = Path(file.filename or "upload").name
+    input_filename = f"{uuid.uuid4()}_{safe_filename}"
+    input_path = temp_dir / input_filename
+    
+    content = await file.read()
+    with open(input_path, 'wb') as f:
+        f.write(content)
+    
+    output_filename = f"{uuid.uuid4()}_flat_{Path(safe_filename).stem}{Path(safe_filename).suffix}"
+    output_path = temp_dir / output_filename
+    
+    def process_task():
+        try:
+            pipeline = FlatColorProfilePipeline(model_name=model_name)
+            pipeline.load_model()
+            result = pipeline.process(str(input_path), str(output_path))
+            process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
+        except ProcessingAborted as e:
+            process_progress[task_id] = {'status': 'aborted', 'error': str(e), 'progress': 0}
+        except Exception as e:
+            process_progress[task_id] = {'status': 'failed', 'error': str(e), 'progress': 0}
+        finally:
+            try:
+                input_path.unlink()
+            except:
+                pass
+    
+    task_id = str(uuid.uuid4())
+    process_progress[task_id] = {'status': 'processing', 'progress': 0}
+    
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, process_task)
+    process_tasks[task_id] = task
+    
+    return {"task_id": task_id, "status": "started"}
+
+
+@app.post("/api/processing/reencode/file")
+async def process_reencode_file(
+    file: UploadFile = File(...),
+    engine: str = Form("ffmpeg"),
+    preset: str = Form("h264_fast"),
+    device: Optional[str] = Form(None),
+):
+    """Reencode video using FFMPEG or Handbrake"""
+    from src.processing import ReencodingPipeline
+    
+    _load_processing()
+    if not PROCESSING_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Processing not available")
+    
+    if _shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server is shutting down")
+    
+    if not file.content_type.startswith('video/'):
+        raise HTTPException(status_code=400, detail="Reencoding only supports video files")
+    
+    temp_dir = TEMP_PROCESSING_DIR
+    temp_dir.mkdir(exist_ok=True)
+    
+    safe_filename = Path(file.filename or "upload").name
+    input_filename = f"{uuid.uuid4()}_{safe_filename}"
+    input_path = temp_dir / input_filename
+    
+    content = await file.read()
+    with open(input_path, 'wb') as f:
+        f.write(content)
+    
+    output_filename = f"{uuid.uuid4()}_reencoded_{Path(safe_filename).stem}.mp4"
+    output_path = temp_dir / output_filename
+    
+    def process_task():
+        try:
+            pipeline = ReencodingPipeline(engine=engine, preset=preset)
+            pipeline.load_model()
+            result = pipeline.process(str(input_path), str(output_path))
+            process_progress[task_id] = {'status': 'completed', 'result': result, 'progress': 100}
+        except ProcessingAborted as e:
+            process_progress[task_id] = {'status': 'aborted', 'error': str(e), 'progress': 0}
+        except Exception as e:
+            process_progress[task_id] = {'status': 'failed', 'error': str(e), 'progress': 0}
+        finally:
+            try:
+                input_path.unlink()
+            except:
+                pass
+    
+    task_id = str(uuid.uuid4())
+    process_progress[task_id] = {'status': 'processing', 'progress': 0}
+    
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, process_task)
+    process_tasks[task_id] = task
+    
+    return {"task_id": task_id, "status": "started"}
 
 
 # Serve static UI files
