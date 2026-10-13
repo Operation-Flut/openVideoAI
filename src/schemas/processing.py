@@ -116,6 +116,59 @@ class MultiprocessRequest(BaseModel):
     device: str = "auto"
 
 
+class PipelineRequest(BaseModel):
+    """Request schema for multi-step pipeline processing"""
+    # Required: List of features to execute in order
+    features: List[str] = Field(
+        default=["upscale"],
+        description="Ordered list of processing features to apply (e.g., ['denoise', 'upscale', 'face-recovery'])"
+    )
+    
+    # Feature-specific configurations
+    upscale_model: str = Field("Real-ESRGAN", description="Upscale model (e.g., Real-ESRGAN, RealBasicVSR)")
+    upscale_scale: int = Field(4, description="Upscaling factor (2, 4)")
+    
+    # Face recovery
+    face_recovery_model: str = Field("CodeFormer", description="Face recovery model (CodeFormer, GFPGAN)")
+    face_fidelity_weight: float = Field(0.5, ge=0.1, le=1.0, description="Face restoration fidelity weight")
+    
+    # Sharpening/deblurring
+    sharpen_model: str = Field("NAFNet", description="Sharpening model (NAFNet, MPRNet)")
+    sharpen_strength: float = Field(1.0, ge=0.1, le=5.0, description="Sharpening strength")
+    sharpen_overlap: int = Field(128, ge=32, le=256, description="Processing window overlap")
+    sharpen_unsharp_amount: float = Field(0.5, ge=0, le=2.0, description="Unsharp mask amount")
+    
+    # Denoising
+    denoise_model: str = Field("SCUNet", description="Denoising model (SCUNet, NAFNet)")
+    denoise_strength: float = Field(0.5, ge=0.1, le=1.0, description="Denoising strength")
+    
+    # Frame interpolation
+    frame_interp_model: str = Field("RIFE", description="Frame interpolation model")
+    frame_interp_multiplier: int = Field(2, ge=1, description="Frame multiplier (2 = 60fps→120fps)")
+    
+    # Slow motion
+    slow_motion_model: str = Field("RIFE-SloMo", description="Slow motion model")
+    slow_motion_slowdown: float = Field(4.0, ge=1.0, description="Slowdown factor (e.g., 4.0 = 30fps→120fps)")
+    
+    # Color matching
+    match_color_model: str = Field("Reinhard Transfer", description="Color matching model")
+    match_color_strength: float = Field(1.0, ge=0.1, le=3.0, description="Color transfer strength")
+    match_color_preserve_luminance: bool = Field(True, description="Preserve luminance during color transfer")
+    
+    # Low light enhancement
+    low_light_model: str = Field("Zero-DCE", description="Low light model")
+    low_light_strength: float = Field(0.7, ge=0.1, le=1.0, description="Low light enhancement strength")
+    
+    # Global settings
+    device: str = Field("auto", description="Processing device (auto, cuda, cpu, metal, hip)")
+    output_path: Optional[str] = Field(None, description="Custom output file path")
+    
+    # Advanced options
+    enable_progress_tracking: bool = Field(True, description="Enable real-time progress reporting")
+    max_retries: int = Field(3, ge=0, description="Maximum retry attempts for failed features")
+    skip_failed_features: bool = Field(True, description="Continue with remaining features if one fails")
+
+
 class ProcessResponse(BaseModel):
     success: bool
     input_path: str

@@ -21,6 +21,7 @@ from .processing import (
     FlatProfileRequest,
     ReencodeRequest,
     MultiprocessRequest,
+    PipelineRequest,
     ProcessResponse,
 )
 
@@ -46,5 +47,6 @@ __all__ = [
     'FlatProfileRequest',
     'ReencodeRequest',
     'MultiprocessRequest',
+    'PipelineRequest',
     'ProcessResponse',
 ]
