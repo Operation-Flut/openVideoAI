@@ -134,7 +134,14 @@ class ModelDownloader:
     def add_progress_callback(self, callback: Callable[[DownloadProgress], None]):
         """Register a callback for download progress updates"""
         self._progress_callbacks.append(callback)
-        
+
+    def remove_progress_callback(self, callback: Callable[[DownloadProgress], None]):
+        """Unregister a previously registered progress callback."""
+        try:
+            self._progress_callbacks.remove(callback)
+        except ValueError:
+            pass
+
     def _notify_progress(self, progress: DownloadProgress):
         """Notify all registered callbacks of progress update"""
         for callback in self._progress_callbacks:

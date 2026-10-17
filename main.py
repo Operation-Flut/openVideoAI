@@ -87,7 +87,7 @@ def run_server(host="127.0.0.1", port=8000, server_holder=None):
     desktop/browser modes can stop it cleanly when the window closes.
     """
     import uvicorn
-    from src.api import app
+    from src.api.main import app
 
     config = uvicorn.Config(app, host=host, port=port, log_level="info")
     server = uvicorn.Server(config)
@@ -106,12 +106,40 @@ def stop_server(server_holder, timeout=5.0):
         thread.join(timeout)
 
 
+def _wait_for_server(host: str, port: int, timeout: float = 240.0,
+                     interval: float = 0.25, thread=None) -> bool:
+    """Block until the API answers on /api/health, or until timeout.
+
+    The FastAPI app imports heavy ML libraries on first run (often 30s+), so
+    windowed and browser modes must not open the UI before the server is
+    actually serving, otherwise the UI loads a connection-refused page.
+    Returns True once ready; False on timeout or if `thread` has died.
+    """
+    import urllib.error
+    import urllib.request
+
+    url = f"http://{host}:{port}/api/health"
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if thread is not None and not thread.is_alive():
+            return False
+        try:
+            with urllib.request.urlopen(url, timeout=1) as resp:
+                if resp.status == 200:
+                    return True
+        except (urllib.error.URLError, OSError):
+            pass
+        time.sleep(interval)
+    return False
+
+
 def _request_processing_shutdown():
     """Notify the backend so in-flight processing tasks abort cooperatively."""
     try:
-        from src import api as api_module
-        api_module.request_processing_shutdown()
-        return api_module
+        from src.services.processing_service import get_processing_service
+        processing_service = get_processing_service()
+        processing_service.request_shutdown()
+        return processing_service
     except Exception as e:
         log.warning("Could not notify processing workers: %s", e)
         return None
@@ -128,12 +156,11 @@ def run_desktop_window(host="127.0.0.1", port=8000, width=1280, height=800):
         return
 
     # Resolve the window icon path
-    # Use .ico for Windows, PNG for other platforms
     from src.core.paths import icon_path, is_frozen
     icon_path_obj = icon_path()
-    _icon = str(icon_path_obj) if (icon_path_obj.exists() and 
+    _icon = str(icon_path_obj) if (icon_path_obj.exists() and
                                     (icon_path_obj.suffix == '.ico' or icon_path_obj.suffix in {'.png', '.jpg', '.jpeg'})) else None
-    
+
     # Pywebview icon requires .ico on Windows
     if sys.platform == "win32" and _icon and not _icon.lower().endswith('.ico'):
         _icon = None  # pywebview requires .ico format on Windows
@@ -148,9 +175,15 @@ def run_desktop_window(host="127.0.0.1", port=8000, width=1280, height=800):
     server_holder["thread"] = server_thread
     server_thread.start()
 
-    # Wait for server to start
+    # Wait until the server actually answers before opening the window; the
+    # FastAPI app can take tens of seconds to import on first run and opening
+    # the window too early would show a connection error page.
     log.info("Starting server on http://%s:%s...", host, port)
-    time.sleep(2)
+    if not _wait_for_server(host, port, thread=server_thread):
+        log.error("Server did not become ready in time; aborting window mode.")
+        stop_server(server_holder, timeout=1.0)
+        return
+    log.info("Server ready - opening window.")
 
     # Create native window
     window = webview.create_window(
@@ -172,15 +205,15 @@ def run_desktop_window(host="127.0.0.1", port=8000, width=1280, height=800):
 
     # The window is gone: abort any in-flight work, stop the server and exit.
     log.info("Application closed. Shutting down...")
-    api_module = _request_processing_shutdown()
+    processing_service = _request_processing_shutdown()
 
     stop_server(server_holder, timeout=1.0)
 
     # Give an in-flight worker a short grace period to abort and release files
-    if api_module is not None:
+    if processing_service is not None:
         try:
             deadline = time.time() + 30
-            while time.time() < deadline and api_module.has_active_processing():
+            while time.time() < deadline and processing_service.has_active_processing():
                 time.sleep(0.2)
         except Exception:
             pass
@@ -207,9 +240,13 @@ def run_browser_mode(host="127.0.0.1", port=8000):
     server_holder["thread"] = server_thread
     server_thread.start()
 
-    # Wait for server to start
+    # Wait until the server actually answers before opening the browser.
     log.info("Starting server on http://%s:%s...", host, port)
-    time.sleep(2)
+    if not _wait_for_server(host, port, thread=server_thread):
+        log.error("Server did not become ready in time.")
+        stop_server(server_holder, timeout=1.0)
+        return
+    log.info("Server ready.")
 
     # Open browser
     url = f"http://{host}:{port}"
@@ -228,39 +265,48 @@ def run_browser_mode(host="127.0.0.1", port=8000):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="openVideoAI - Local AI Video Enhancement")
-    parser.add_argument("--mode", choices=["window", "browser", "server"], default="window",
-                        help="Run mode: window (native desktop), browser (open in browser), server (API only)")
+    parser.add_argument("--mode", choices=["window", "browser", "server", "cli"], default="window",
+                        help="Run mode: window (native desktop), browser (open in browser), server (API only), cli (command line)")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8000,
                         help="Preferred port (automatically picks the next free port if busy)")
     parser.add_argument("--width", type=int, default=1280, help="Window width (window mode)")
     parser.add_argument("--height", type=int, default=800, help="Window height (window mode)")
 
-    args = parser.parse_args()
-
-    # Pick a free port automatically so a leftover instance cannot brick startup
-    effective_port = find_free_port(args.host, args.port)
-    if effective_port is None:
-        log.error(
-            "No free port available starting from %s. "
-            "Close other openVideoAI instances and retry.", args.port
-        )
-        sys.exit(1)
-
-    log.info("=" * 50)
-    log.info("openVideoAI - Local AI Video Enhancement")
-    log.info("=" * 50)
-    log.info("Mode: %s", args.mode)
-    log.info("Host: %s", args.host)
-    if effective_port != args.port:
-        log.info("Port: %s (in use — using %s)", args.port, effective_port)
+    # CLI subcommand handling
+    if len(sys.argv) > 1 and sys.argv[1] in ("enhance", "models", "download", "delete-model", "presets", "info", "serve"):
+        # Delegate to CLI module
+        from src.cli.main import app as cli_app
+        cli_app()
     else:
-        log.info("Port: %s", effective_port)
-    log.info("URL: http://%s:%s", args.host, effective_port)
+        args = parser.parse_args()
 
-    if args.mode == "window":
-        run_desktop_window(args.host, effective_port, args.width, args.height)
-    elif args.mode == "browser":
-        run_browser_mode(args.host, effective_port)
-    else:
-        run_server(args.host, effective_port)
+        # Pick a free port automatically so a leftover instance cannot brick startup
+        effective_port = find_free_port(args.host, args.port)
+        if effective_port is None:
+            log.error(
+                "No free port available starting from %s. "
+                "Close other openVideoAI instances and retry.", args.port
+            )
+            sys.exit(1)
+
+        log.info("=" * 50)
+        log.info("openVideoAI - Local AI Video Enhancement")
+        log.info("=" * 50)
+        log.info("Mode: %s", args.mode)
+        log.info("Host: %s", args.host)
+        if effective_port != args.port:
+            log.info("Port: %s (in use — using %s)", args.port, effective_port)
+        else:
+            log.info("Port: %s", effective_port)
+        log.info("URL: http://%s:%s", args.host, effective_port)
+
+        if args.mode == "window":
+            run_desktop_window(args.host, effective_port, args.width, args.height)
+        elif args.mode == "browser":
+            run_browser_mode(args.host, effective_port)
+        elif args.mode == "server":
+            run_server(args.host, effective_port)
+        elif args.mode == "cli":
+            from src.cli.main import app as cli_app
+            cli_app(["--help"])

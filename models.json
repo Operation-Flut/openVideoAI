@@ -17,7 +17,26 @@
             "isAi": true,
             "requiresCuda": true,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": false,
+            "arch": "RealESRGANer",
+            "runtime": {
+                "scale": 4,
+                "modelParams": {
+                    "num_in_ch": 3,
+                    "num_out_ch": 3,
+                    "num_feat": 64,
+                    "num_block": 23,
+                    "scale": 4
+                },
+                "tileSize": 400,
+                "tilePad": 10,
+                "prePad": 0,
+                "halfPrecision": true
+            },
+            "defaultFor": [
+                "Upscale"
+            ],
+            "requiresModule": "realesrgan"
         },
         {
             "name": "CodeFormer",
@@ -34,9 +53,14 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true,
+            "arch": "CodeFormer",
+            "defaultFor": [
+                "Face Recovery"
+            ],
+            "requiresModule": "src.processing.archs.codeformer_arch"
         },
         {
             "name": "NAFNet-SIDD",
@@ -55,7 +79,16 @@
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "NAFNet",
+            "requiresModule": "src.processing.archs.nafnet_arch",
+            "runtime": {
+                "width": 64,
+                "middleBlkNum": 12,
+                "encBlkNums": [2, 2, 4, 8],
+                "decBlkNums": [2, 2, 2, 2],
+                "tileSize": 512
+            }
         },
         {
             "name": "NAFNet-REDS",
@@ -69,12 +102,25 @@
                 {
                     "name": "Sharpen / Deblur",
                     "description": "Restores video affected by general blur and complex visual artifacts."
+                },
+                {
+                    "name": "Denoise",
+                    "description": "NAFNet trained on REDS for video denoising and restoration."
                 }
             ],
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "NAFNet",
+            "requiresModule": "src.processing.archs.nafnet_arch",
+            "runtime": {
+                "width": 64,
+                "middleBlkNum": 1,
+                "encBlkNums": [1, 1, 1, 28],
+                "decBlkNums": [1, 1, 1, 1],
+                "tileSize": 512
+            }
         },
         {
             "name": "NAFNet-GoPro",
@@ -88,12 +134,28 @@
                 {
                     "name": "Sharpen / Deblur",
                     "description": "Removes motion blur caused by camera shake and fast movement."
+                },
+                {
+                    "name": "Denoise",
+                    "description": "NAFNet trained on GoPro, also effective at suppressing sensor noise."
                 }
             ],
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "NAFNet",
+            "defaultFor": [
+                "Sharpen / Deblur"
+            ],
+            "requiresModule": "src.processing.archs.nafnet_arch",
+            "runtime": {
+                "width": 64,
+                "middleBlkNum": 1,
+                "encBlkNums": [1, 1, 1, 28],
+                "decBlkNums": [1, 1, 1, 1],
+                "tileSize": 512
+            }
         },
         {
             "name": "SCUNet",
@@ -110,9 +172,14 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true,
+            "arch": "SCUNet",
+            "defaultFor": [
+                "Denoise"
+            ],
+            "requiresModule": "src.processing.archs.scunet_arch"
         },
         {
             "name": "RIFE",
@@ -135,7 +202,12 @@
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "RIFE",
+            "defaultFor": [
+                "Frame Interpolation"
+            ],
+            "requiresModule": "src.processing.archs.rife_arch"
         },
         {
             "name": "RIFE v4.26 (PyTorch)",
@@ -156,9 +228,11 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true,
+            "arch": "RIFE",
+            "requiresModule": "src.processing.archs.rife_arch"
         },
         {
             "name": "RIFE 4.25 (MLX)",
@@ -181,7 +255,8 @@
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": true,
-            "canRunOnCpu": false
+            "canRunOnCpu": false,
+            "arch": null
         },
         {
             "name": "WMS-RIFE v3 (PyTorch)",
@@ -202,9 +277,10 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true,
+            "arch": null
         },
         {
             "name": "RIFE (PyTorch Safetensors)",
@@ -227,7 +303,8 @@
             "isAi": true,
             "requiresCuda": true,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": false,
+            "arch": null
         },
         {
             "name": "RIFE v4.9 (ONNX)",
@@ -248,9 +325,10 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true,
+            "arch": null
         },
         {
             "name": "FILM",
@@ -271,9 +349,11 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true,
+            "arch": "FILM",
+            "requiresModule": "src.processing.archs.film_arch"
         },
         {
             "name": "Farnebäck Optical Flow",
@@ -296,7 +376,8 @@
             ],
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "Farneback"
         },
         {
             "name": "DIS Optical Flow",
@@ -319,7 +400,8 @@
             ],
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "DIS"
         },
         {
             "name": "Dual TV-L1 Optical Flow",
@@ -342,7 +424,9 @@
             ],
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "DualTVL1",
+            "requiresModule": "cv2.optflow"
         },
         {
             "name": "Lucas-Kanade (Pyramidal LK)",
@@ -365,7 +449,8 @@
             ],
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "LucasKanade"
         },
         {
             "name": "RAFT Optical Flow",
@@ -388,7 +473,9 @@
             ],
             "requiresCuda": true,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": false,
+            "arch": "RAFT",
+            "requiresModule": "src.processing.archs.raft_arch"
         },
         {
             "name": "FlowFormer Optical Flow",
@@ -411,7 +498,9 @@
             ],
             "requiresCuda": true,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": false,
+            "arch": "FlowFormer",
+            "requiresModule": "src.processing.archs.flowformer_arch"
         },
         {
             "name": "GMA Optical Flow",
@@ -434,7 +523,9 @@
             ],
             "requiresCuda": true,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": false,
+            "arch": "GMA",
+            "requiresModule": "src.processing.archs.gma_arch"
         },
         {
             "name": "SPyNet Optical Flow",
@@ -457,30 +548,9 @@
             ],
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
-        },
-        {
-            "name": "EpicFlow Optical Flow",
-            "description": "EpicFlow - edge-preserving interpolation of correspondences for optical flow. Classical algorithm with strong edge handling, no deep learning required.",
-            "size": "Built-in (< 1MB)",
-            "weight": "Ultra-Lightweight (0 VRAM)",
-            "url": "https://github.com/reuter/epicflow",
-            "downloadUrl": null,
-            "isAi": false,
-            "descriptionShort": "Edge-preserving classical optical flow for motion interpolation.",
-            "features": [
-                {
-                    "name": "Frame Interpolation",
-                    "description": "Interpolates frames using edge-preserving correspondence interpolation."
-                },
-                {
-                    "name": "SloMo",
-                    "description": "Slow-motion with strong motion boundary preservation."
-                }
-            ],
-            "requiresCuda": false,
-            "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "SPyNet",
+            "requiresModule": "src.processing.archs.spynet_arch"
         },
         {
             "name": "RealBasicVSR",
@@ -505,9 +575,11 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true,
+            "arch": "RealBasicVSR",
+            "requiresModule": "src.processing.archs.realbasicvsr_arch"
         },
         {
             "name": "Real-CUGAN",
@@ -528,9 +600,25 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true,
+            "arch": "RealESRGANer",
+            "runtime": {
+                "scale": 3,
+                "modelParams": {
+                    "num_in_ch": 3,
+                    "num_out_ch": 3,
+                    "num_feat": 64,
+                    "num_block": 16,
+                    "scale": 3
+                },
+                "tileSize": 256,
+                "tilePad": 10,
+                "prePad": 0,
+                "halfPrecision": true
+            },
+            "requiresModule": "realesrgan"
         },
         {
             "name": "NLUT",
@@ -550,7 +638,9 @@
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "NLUT",
+            "requiresModule": "src.processing.archs.nlut_arch"
         },
         {
             "name": "Deep Color Transfer",
@@ -570,7 +660,9 @@
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "DeepColorTransfer",
+            "requiresModule": "src.processing.archs.deepcolor_arch"
         },
         {
             "name": "WCT2",
@@ -595,7 +687,9 @@
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "WCT2",
+            "requiresModule": "src.processing.archs.wct2_arch"
         },
         {
             "name": "Reinhard Transfer",
@@ -614,7 +708,11 @@
             "isAi": false,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "Reinhard",
+            "defaultFor": [
+                "Match Color"
+            ]
         },
         {
             "name": "Sapsan-VFI",
@@ -625,9 +723,9 @@
             "downloadUrl": "https://huggingface.co/SnJake/Sapsan-VFI/resolve/main/Sapsan-VFI.pt",
             "descriptionShort": "Deep learning model for up to 2x video frame interpolation and slow-motion generation.",
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false,
+            "canRunOnCpu": true,
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -637,7 +735,8 @@
                     "name": "SloMo",
                     "description": "Creates slow-motion effects by interpolating frames in video sequences."
                 }
-            ]
+            ],
+            "arch": null
         },
         {
             "name": "BSRGAN",
@@ -658,9 +757,10 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true,
+            "arch": null
         },
         {
             "name": "GFPGAN",
@@ -677,9 +777,11 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true,
+            "arch": "GFPGAN",
+            "requiresModule": "src.processing.archs.gfpgan_arch"
         },
         {
             "name": "RestoreFormer",
@@ -696,9 +798,11 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true,
+            "arch": "RestoreFormer",
+            "requiresModule": "src.processing.archs.restoreformer_arch"
         },
         {
             "name": "RestoreFormer++",
@@ -715,9 +819,11 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true,
+            "arch": "RestoreFormerPlusPlus",
+            "requiresModule": "src.processing.archs.restoreformer_plusplus_arch"
         },
         {
             "name": "DifFace",
@@ -734,9 +840,11 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": true,
+            "arch": "DifFace",
+            "requiresModule": "src.processing.archs.difface_arch"
         },
         {
             "name": "Restormer",
@@ -759,7 +867,9 @@
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "Restormer",
+            "requiresModule": "src.processing.archs.restormer"
         },
         {
             "name": "DeblurGAN-v2",
@@ -778,7 +888,9 @@
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "DeblurGANv2",
+            "requiresModule": "tensorflow"
         },
         {
             "name": "MPRNet",
@@ -801,7 +913,9 @@
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "MPRNet",
+            "requiresModule": "src.processing.archs.mprnet_arch"
         },
         {
             "name": "FFTformer",
@@ -820,7 +934,9 @@
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "FFTformer",
+            "requiresModule": "src.processing.archs.fftformer_arch"
         },
         {
             "name": "DiffBIR",
@@ -843,7 +959,8 @@
             "isAi": true,
             "requiresCuda": true,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": false,
+            "arch": null
         },
         {
             "name": "SUPIR",
@@ -866,7 +983,8 @@
             "isAi": true,
             "requiresCuda": true,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": false,
+            "arch": null
         },
         {
             "name": "SeeSR",
@@ -885,7 +1003,8 @@
             "isAi": true,
             "requiresCuda": true,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": false,
+            "arch": null
         },
         {
             "name": "StableSR",
@@ -904,7 +1023,8 @@
             "isAi": true,
             "requiresCuda": true,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": false,
+            "arch": null
         },
         {
             "name": "CCSR",
@@ -923,7 +1043,8 @@
             "isAi": true,
             "requiresCuda": true,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": false,
+            "arch": null
         },
         {
             "name": "OSEDiff",
@@ -940,9 +1061,10 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false
+            "canRunOnCpu": false,
+            "arch": null
         },
         {
             "name": "TSRN-RTVD",
@@ -961,7 +1083,9 @@
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": "TSRN",
+            "requiresModule": "src.processing.archs.tsrn_arch"
         },
         {
             "name": "OpenCV NAFNet (ONNX)",
@@ -980,81 +1104,308 @@
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": true
+            "canRunOnCpu": true,
+            "arch": null
+        },
+        {
+            "name": "Zero-DCE",
+            "description": "Zero-Reference Deep Curve Estimation for low-light enhancement. A tiny (3MB) network that learns pixel-wise light enhancement curves without paired training data, so it lifts shadows while keeping colors natural.",
+            "size": "~3MB",
+            "weight": "Ultra-Lightweight",
+            "url": "https://github.com/Li-Chongyi/Zero-DCE",
+            "downloadUrl": "https://github.com/Li-Chongyi/Zero-DCE/raw/master/Zero-DCE_code/snapshots/Epoch99.pth",
+            "descriptionShort": "Tiny AI low-light enhancer that lifts shadows while keeping colors natural.",
+            "features": [
+                {
+                    "name": "Low-Light Enhancement",
+                    "description": "Recovers detail in underexposed, night-time and backlit footage."
+                }
+            ],
+            "isAi": true,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true,
+            "arch": "ZeroDCE",
+            "requiresModule": "src.processing.archs.zerodce_arch"
+        },
+        {
+            "name": "Auto Low-Light (Classical)",
+            "description": "Classical low-light enhancement built on CLAHE, adaptive gamma correction and local contrast. Runs on any machine instantly with no download required.",
+            "size": "< 1MB",
+            "weight": "Ultra-Lightweight",
+            "url": "",
+            "downloadUrl": null,
+            "descriptionShort": "Instant classical low-light boost with no download.",
+            "features": [
+                {
+                    "name": "Low-Light Enhancement",
+                    "description": "Lifts shadows and boosts local contrast on the CPU."
+                }
+            ],
+            "isAi": false,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true,
+            "is_builtin": true,
+            "arch": "CLAHE",
+            "defaultFor": [
+                "Low-Light Enhancement"
+            ]
+        },
+        {
+            "name": "HDR (Reinhard Tone Mapping)",
+            "description": "Classical SDR to HDR conversion using Reinhard global tone mapping plus local contrast, then PQ (HDR10/HDR10+) or HLG encoding. No model download needed.",
+            "size": "< 1MB",
+            "weight": "Ultra-Lightweight",
+            "url": "",
+            "downloadUrl": null,
+            "descriptionShort": "Instant SDR to HDR conversion with Reinhard tone mapping.",
+            "features": [
+                {
+                    "name": "SDR to HDR",
+                    "description": "Expands dynamic range and maps to HDR10, HDR10+ or HLG."
+                }
+            ],
+            "isAi": false,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true,
+            "is_builtin": true,
+            "arch": "Reinhard",
+            "defaultFor": [
+                "SDR to HDR"
+            ]
+        },
+        {
+            "name": "RealESRGAN_x4plus_anime_6B",
+            "description": "Real-ESRGAN x4plus variant with a 6-block RRDBNet tuned for anime and line art, preserving flat colors and thin outlines.",
+            "descriptionShort": "Anime/line-art upscaling with a lighter 6-block network.",
+            "size": "~18MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/xinntao/Real-ESRGAN",
+            "downloadUrl": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
+            "features": [
+                {
+                    "name": "Upscale",
+                    "description": "4x upscaling optimised for anime, line art and cel shading."
+                },
+                {
+                    "name": "Multipurpose Pipeline",
+                    "description": "Sharpens and enlarges animation without introducing ringing."
+                }
+            ],
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": true,
+            "arch": "RealESRGANer",
+            "runtime": {
+                "scale": 4,
+                "modelParams": {
+                    "num_in_ch": 3,
+                    "num_out_ch": 3,
+                    "num_feat": 64,
+                    "num_block": 6,
+                    "scale": 4
+                },
+                "tileSize": 400,
+                "tilePad": 10,
+                "prePad": 0,
+                "halfPrecision": true
+            },
+            "requiresModule": "realesrgan"
+        },
+        {
+            "name": "RealESRGAN_x2plus",
+            "description": "Real-ESRGAN x2plus for 2x upscaling of photos and video with natural texture reconstruction.",
+            "descriptionShort": "2x upscaling for photos and video.",
+            "size": "~64MB",
+            "weight": "Lightweight",
+            "url": "https://github.com/xinntao/Real-ESRGAN",
+            "downloadUrl": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth",
+            "features": [
+                {
+                    "name": "Upscale",
+                    "description": "2x resolution increase with faithful detail reconstruction."
+                },
+                {
+                    "name": "Video Super Resolution",
+                    "description": "Frame-by-frame 2x upscaling for video."
+                }
+            ],
+            "requiresCuda": true,
+            "requiresMetal": false,
+            "canRunOnCpu": true,
+            "arch": "RealESRGANer",
+            "runtime": {
+                "scale": 2,
+                "modelParams": {
+                    "num_in_ch": 3,
+                    "num_out_ch": 3,
+                    "num_feat": 64,
+                    "num_block": 23,
+                    "scale": 2
+                },
+                "tileSize": 400,
+                "tilePad": 10,
+                "prePad": 0,
+                "halfPrecision": true
+            },
+            "requiresModule": "realesrgan"
+        },
+        {
+            "name": "ffmpeg",
+            "description": "Bundled FFmpeg encoder used for re-encoding video without any AI model weights.",
+            "descriptionShort": "FFmpeg-based re-encoding (H.264/H.265/AV1).",
+            "size": "Built-in (< 1MB)",
+            "weight": "Ultra-Lightweight (0 VRAM)",
+            "url": "https://ffmpeg.org/",
+            "downloadUrl": null,
+            "features": [
+                {
+                    "name": "Reencoding",
+                    "description": "Re-encodes the processed output with the selected codec and quality."
+                }
+            ],
+            "isAi": false,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true,
+            "is_builtin": true,
+            "arch": "ffmpeg",
+            "defaultFor": [
+                "Reencoding"
+            ]
+        },
+        {
+            "name": "handbrake",
+            "description": "HandBrake CLI encoder for standards-compliant re-encoding and device presets. Declared for reference only: no HandBrake runtime is implemented in this build, so it is not offered as a pipeline step.",
+            "descriptionShort": "HandBrake CLI re-encoding (no runtime in this build).",
+            "size": "Built-in (< 1MB)",
+            "weight": "Ultra-Lightweight (0 VRAM)",
+            "url": "https://handbrake.fr/",
+            "downloadUrl": null,
+            "features": [
+                {
+                    "name": "Reencoding",
+                    "description": "Re-encodes using HandBrake presets when the CLI is installed."
+                }
+            ],
+            "isAi": false,
+            "requiresCuda": false,
+            "requiresMetal": false,
+            "canRunOnCpu": true,
+            "is_builtin": true,
+            "arch": null
         }
     ],
     "features": [
         {
             "name": "Upscale",
-            "description": "Increases image and video resolution up to 4x while reconstructing sharp edges, textures, and line art."
+            "description": "Increases image and video resolution up to 4x while reconstructing sharp edges, textures, and line art.",
+            "displayName": "Upscale",
+            "alwaysOn": true
+        },
+        {
+            "name": "Video Super Resolution",
+            "description": "Frame-by-frame temporal upscaling for video that keeps detail consistent across frames.",
+            "displayName": "Video Upscale"
         },
         {
             "name": "Face Recovery",
-            "description": "Identifies and reconstructs high-fidelity facial features from severe degradation, blur, or heavy pixelation."
+            "description": "Identifies and reconstructs high-fidelity facial features from severe degradation, blur, or heavy pixelation.",
+            "displayName": "Recover Faces"
         },
         {
             "name": "Sharpen / Deblur",
-            "description": "Removes motion blur, camera shake, and out-of-focus softness using low-latency neural operations."
+            "description": "Removes motion blur, camera shake, and out-of-focus softness using low-latency neural operations.",
+            "displayName": "Sharpen"
         },
         {
             "name": "Denoise",
-            "description": "Eliminates high-ISO sensor grain, color speckles, and heavy JPEG compression artifacts without blurring edges."
+            "description": "Eliminates high-ISO sensor grain, color speckles, and heavy JPEG compression artifacts without blurring edges.",
+            "displayName": "Denoise"
         },
         {
             "name": "Frame Interpolation",
-            "description": "Synthesizes intermediate motion frames to boost video framerates (e.g., 24fps to 60fps) or fill gaps between images."
+            "description": "Synthesizes intermediate motion frames to boost video framerates (e.g., 24fps to 60fps) or fill gaps between images.",
+            "displayName": "Frame Interpolation",
+            "experimental": true
         },
         {
             "name": "SloMo",
-            "description": "Generates fluid slow-motion playback by generating motion-aware synthetic frames."
+            "description": "Generates fluid slow-motion playback by generating motion-aware synthetic frames.",
+            "displayName": "Slow Motion"
         },
         {
             "name": "Frame Recovery",
-            "description": "Reconstructs missing, skipped, or stuttering frames across scenes with large motion changes."
+            "description": "Reconstructs missing, skipped, or stuttering frames across scenes with large motion changes.",
+            "displayName": "Frame Recovery"
         },
         {
             "name": "Multipurpose Restoration",
-            "description": "Combines noise removal, deblurring, compression cleanup, and line-art smoothing into a single processing pass."
+            "description": "Combines noise removal, deblurring, compression cleanup, and line-art smoothing into a single processing pass.",
+            "displayName": "Restore"
+        },
+        {
+            "name": "Multipurpose Pipeline",
+            "description": "Combined presets that upscale and sharpen animation in a single pass.",
+            "displayName": "Multipurpose"
         },
         {
             "name": "Correct Distortion",
-            "description": "Corrects lens distortion, perspective skew, and other geometric artifacts in images and videos."
+            "description": "Corrects lens distortion, perspective skew, and other geometric artifacts in images and videos.",
+            "displayName": "Correct Distortion"
         },
         {
             "name": "Low-Light Enhancement",
-            "description": "Restores details, exposure, and dynamic range in underexposed or night photos without noise amplification."
+            "description": "Restores details, exposure, and dynamic range in underexposed or night photos without noise amplification.",
+            "displayName": "Low Light"
         },
         {
             "name": "Colorization",
-            "description": "Restores vibrant, natural colors to black-and-white or severely faded historical photos."
+            "description": "Restores vibrant, natural colors to black-and-white or severely faded historical photos.",
+            "displayName": "Colorization"
         },
         {
             "name": "Object Removal",
-            "description": "Erases unwanted objects, text, watermarks, or blemishes from images and videos using AI inpainting."
+            "description": "Erases unwanted objects, text, watermarks, or blemishes from images and videos using AI inpainting.",
+            "displayName": "Object Removal"
         },
         {
             "name": "Match Color",
-            "description": "Extracts the color palette, contrast levels, and grading style from a reference photo and applies it to the target image or video without altering its underlying content."
+            "description": "Extracts the color palette, contrast levels, and grading style from a reference photo and applies it to the target image or video without altering its underlying content.",
+            "displayName": "Color Match"
         },
         {
             "name": "Log Restoration",
-            "description": "Transforms flat, underexposed, crappy, or noisy LOG video footage (S-Log, C-Log, D-Log) into crisp, high-contrast, color-corrected Rec.709 footage using AI tone mapping and shadow denoising."
+            "description": "Transforms flat, underexposed, crappy, or noisy LOG video footage (S-Log, C-Log, D-Log) into crisp, high-contrast, color-corrected Rec.709 footage using AI tone mapping and shadow denoising.",
+            "displayName": "Log Restore"
         },
         {
             "name": "SDR to HDR",
-            "description": "Converts standard dynamic range (SDR) video into high dynamic range (HDR) formats like HDR10 or Dolby Vision by intelligently expanding contrast and color gamut."
+            "description": "Converts standard dynamic range (SDR) video into high dynamic range (HDR) formats like HDR10 or Dolby Vision by intelligently expanding contrast and color gamut.",
+            "displayName": "HDR Conversion",
+            "experimental": true
+        },
+        {
+            "name": "Reencoding",
+            "description": "Re-encodes the processed output with the selected codec, container and quality settings.",
+            "displayName": "Encoding"
         },
         {
             "name": "Focus Fix",
-            "description": "Corrects out-of-focus or soft footage by enhancing edge sharpness and restoring fine details using multi-frame analysis."
+            "description": "Corrects out-of-focus or soft footage by enhancing edge sharpness and restoring fine details using multi-frame analysis.",
+            "displayName": "Focus Fix"
         },
         {
             "name": "Overexposure & Contrast Fix",
-            "description": "Corrects overexposed highlights, crushed shadows, and contrast imbalances by dynamically remapping the tone curve and restoring lost detail."
+            "description": "Corrects overexposed highlights, crushed shadows, and contrast imbalances by dynamically remapping the tone curve and restoring lost detail.",
+            "displayName": "Overexposure & Contrast Fix"
         },
         {
             "name": "Flat Color Profile",
-            "description": "Applies a flat, regularized color profile to correct clips to a more neutral color balance for fixing over/underexposure, warmth issues, and color spill as well as recovering all color channels to a consistent, balanced look. using ai"
+            "description": "Applies a flat, regularized color profile to correct clips to a more neutral color balance for fixing over/underexposure, warmth issues, and color spill as well as recovering all color channels to a consistent, balanced look. using ai",
+            "displayName": "Flat Color Profile"
         }
     ],
     "modules": [
@@ -1186,6 +1537,63 @@
             "name": "GitHub",
             "url": "https://github.com/",
             "description": "The Most Popular Git repo registry and hoster for open-source projects, including AI model repositories."
+        }
+    ],
+    "groups": [
+        {
+            "key": "upscale",
+            "label": "Upscale & Restoration",
+            "icon": "Maximize2",
+            "description": "Increase resolution and reconstruct fine detail",
+            "features": [
+                "Upscale",
+                "Multipurpose Restoration",
+                "Video Super Resolution",
+                "Log Restoration"
+            ]
+        },
+        {
+            "key": "enhance",
+            "label": "Enhancement",
+            "icon": "Wand2",
+            "description": "Denoise, sharpen and restore detail",
+            "features": [
+                "Denoise",
+                "Sharpen / Deblur",
+                "Face Recovery",
+                "Focus Fix"
+            ]
+        },
+        {
+            "key": "motion",
+            "label": "Frame Interpolation & Motion",
+            "icon": "Film",
+            "description": "Smooth motion and raise the frame rate",
+            "features": [
+                "Frame Interpolation",
+                "SloMo",
+                "Frame Recovery"
+            ]
+        },
+        {
+            "key": "color",
+            "label": "Color & Light",
+            "icon": "Palette",
+            "description": "Match color and correct exposure",
+            "features": [
+                "Match Color",
+                "Low-Light Enhancement",
+                "SDR to HDR"
+            ]
+        },
+        {
+            "key": "encoding",
+            "label": "Encoding",
+            "icon": "Layers",
+            "description": "Re-encode the output",
+            "features": [
+                "Reencoding"
+            ]
         }
     ]
 }

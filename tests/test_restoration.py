@@ -1,142 +1,153 @@
-import unittest
+"""Face Recovery + restoration catalog tests.
 
-from src.processing.face_recovery import FACE_MODELS, get_face_model, list_face_models
-from src.processing.restoration import (
-    DIFFUSION_RESTORERS,
-    MULTIPURPOSE_MODELS,
-    MultipurposeRestorationPipeline,
-    get_multipurpose_model,
-    list_multipurpose_models,
-)
-from src.processing import ModelLoadError
+Repointed from the removed ``src.processing.face_recovery`` / ``restoration``
+modules to the catalog-driven pipelines: which face models this build can
+really run, which catalog entries are listed but deliberately not implemented,
+the checkpoint filenames the model manager writes, and the parameter clamping.
+Checkpoint tests are skipped when the weights are absent.
+"""
+import unittest
+from pathlib import Path
+
+from src.models.registry import get_registry
+from src.processing.pipeline.base import ModelLoadError
+from src.processing.pipeline.registry import get_pipeline_registry
+
+RUNNABLE_FACE_MODELS = {
+    "CodeFormer": "CodeFormer",
+    "GFPGAN": "GFPGAN",
+    "RestoreFormer": "RestoreFormer",
+}
+
+CHECKPOINT_FILES = {
+    "CodeFormer": "codeformer.pth",
+    "GFPGAN": "GFPGANv1.4.pth",
+    "RestoreFormer": "RestoreFormer.pth",
+}
 
 
 class FaceRecoveryCatalogTests(unittest.TestCase):
-    def test_gfpgan_filename_matches_catalog_download(self):
-        """The model manager saves the GFPGAN weight as GFPGANv1.4.pth -
-        the pipeline must look for exactly that file."""
-        self.assertEqual(FACE_MODELS["GFPGAN"]["model_file"], "GFPGANv1.4.pth")
+    def test_only_implemented_models_are_offered(self):
+        registry = get_registry()
+        self.assertEqual(
+            sorted(registry.get_available_model_names("Face Recovery")),
+            sorted(RUNNABLE_FACE_MODELS),
+        )
+        self.assertEqual(registry.get_default_model("Face Recovery"), "CodeFormer")
 
-    def test_face_model_lookup_resolves_default_dir(self):
-        """get_face_model resolves its default directory via src.core.paths,
-        so it works regardless of the CWD the app was started from."""
-        path = get_face_model("CodeFormer")
-        # When the repo-relative models/ exists the resolved model dir should
-        # point there; either way the lookup must not raise.
-        self.assertIsInstance(path, (str, type(None)))
-        for entry in list_face_models():
-            self.assertIn("name", entry)
-            self.assertIn("downloaded", entry)
+    def test_each_runnable_model_maps_to_its_architecture_and_module(self):
+        registry = get_registry()
+        for name, arch in RUNNABLE_FACE_MODELS.items():
+            with self.subTest(model=name):
+                entry = registry.get_model(name)
+                self.assertEqual(entry.arch, arch)
+                self.assertTrue(entry.is_implemented)
+                self.assertEqual(registry.runtime_config(name, "Face Recovery")["arch"], arch)
 
-    def test_codeformer_checkpoint_strict_load(self):
-        """The official codeformer.pth weights (params_ema) must strict-load
-        into the vendored CodeFormer architecture (guarded: skipped when the
-        weights file or torch are not available)."""
-        try:
-            import torch
-            from src.processing.archs.codeformer_arch import CodeFormer
-        except Exception as exc:  # pragma: no cover - environment dependent
-            self.skipTest(f"CodeFormer arch or torch unavailable: {exc}")
-        path = get_face_model("CodeFormer")
-        if not path:
-            self.skipTest("codeformer.pth not downloaded")
-        net = CodeFormer(dim_embd=512, codebook_size=1024, n_head=8, n_layers=9,
-                         connect_list=['32', '64', '128', '256'])
-        checkpoint = torch.load(path, map_location='cpu', weights_only=False)
-        state = checkpoint.get('params_ema') or checkpoint.get('params')
-        self.assertIsNotNone(state, "checkpoint has neither params_ema nor params")
-        net.load_state_dict(state)  # strict by default
+    def test_checkpoint_filenames_match_the_catalog_downloads(self):
+        """The model manager saves the download under its URL basename, and the
+        loader looks for exactly that file."""
+        registry = get_registry()
+        for name, filename in CHECKPOINT_FILES.items():
+            with self.subTest(model=name):
+                entry = registry.get_model(name)
+                self.assertEqual(Path(entry.download_url).name, filename)
 
-    def test_gfpgan_checkpoint_strict_load(self):
-        """The official GFPGANv1.4.pth weights (params_ema, 285 tensors) must
-        strict-load into the vendored clean GFPGAN architecture. The arch must
-        be the v1.4 'clean' generator (StyleGAN2GeneratorClean base), matching
-        the GFPGANer defaults (guarded: skipped when weights are absent)."""
-        try:
-            import torch
-            from src.processing.archs.gfpgan_arch import GFPGANv1Clean
-        except Exception as exc:  # pragma: no cover - environment dependent
-            self.skipTest(f"GFPGAN arch or torch unavailable: {exc}")
-        path = get_face_model("GFPGAN")
-        if not path:
-            self.skipTest("GFPGANv1.4.pth not downloaded")
-        net = GFPGANv1Clean(
-            out_size=512, num_style_feat=512, channel_multiplier=2,
-            decoder_load_path=None, fix_decoder=False, num_mlp=8,
-            input_is_latent=True, different_w=True, narrow=1, sft_half=True)
-        checkpoint = torch.load(path, map_location='cpu', weights_only=False)
-        state = checkpoint.get('params_ema') or checkpoint.get('params')
-        self.assertIsNotNone(state, "checkpoint has neither params_ema nor params")
-        self.assertEqual(len(state), 285)
-        net.load_state_dict(state)  # strict by default
+    def test_parameter_surface_is_clamped(self):
+        from src.processing.face.pipeline import FaceRecoveryPipeline
 
-    def test_restoreformer_checkpoint_strict_load(self):
-        """The official RestoreFormer.pth weights must strict-load into the
-        vendored RestoreFormer architecture (VQGAN encoder + multi-head
-        attention transformer decoder). GFPGANer-style fallback: the release
-        ships a bare state dict (guarded: skipped when weights are absent)."""
-        try:
-            import torch
-            from src.processing.archs.restoreformer_arch import RestoreFormer
-        except Exception as exc:  # pragma: no cover - environment dependent
-            self.skipTest(f"RestoreFormer arch or torch unavailable: {exc}")
-        path = get_face_model("RestoreFormer")
-        if not path:
-            self.skipTest("RestoreFormer.pth not downloaded")
-        net = RestoreFormer()
-        checkpoint = torch.load(path, map_location='cpu', weights_only=False)
-        state = checkpoint.get('params_ema') or checkpoint.get('params') or checkpoint
-        self.assertTrue(state, "checkpoint is empty")
-        net.load_state_dict(state)  # strict by default
+        schema = FaceRecoveryPipeline.config.parameter_schema["properties"]
+        self.assertEqual(set(schema), {"fidelity_weight", "face_upscale"})
 
-    def test_restoreformer_plusplus_fails_fast(self):
-        """RestoreFormer++ is registered (weights downloadable) but its
-        VQGAN+attention backend is not bundled: loading must fail fast with
-        a clear message listing the implemented face models."""
-        from src.processing.face_recovery import _IMPLEMENTED_FACE_MODELS, FaceRecoveryPipeline
-        with self.assertRaises(ModelLoadError) as ctx:
-            FaceRecoveryPipeline(model_name="RestoreFormer++").load_model("missing.pth")
-        message = str(ctx.exception)
-        self.assertIn("RestoreFormer++", message)
-        self.assertIn(_IMPLEMENTED_FACE_MODELS, message)
+        pipeline = FaceRecoveryPipeline(model_name="CodeFormer", device="cpu",
+                                        fidelity_weight=5.0, face_upscale=False)
+        self.assertEqual(pipeline.fidelity_weight, 1.0)
+        self.assertFalse(pipeline.face_upscale)
+        self.assertEqual(
+            FaceRecoveryPipeline(model_name="CodeFormer", device="cpu",
+                                 fidelity_weight=-3.0).fidelity_weight,
+            0.0,
+        )
+
+    def test_feature_is_registered_with_the_face_pipeline(self):
+        pipeline_class = get_pipeline_registry().get_pipeline_class("Face Recovery")
+        self.assertEqual(pipeline_class.config.feature, "Face Recovery")
 
 
-class DiffusionRestorerTests(unittest.TestCase):
-    def test_catalog_models_registered_with_downloadable_files(self):
-        for name in ("DiffBIR", "SUPIR", "StableSR", "SeeSR", "CCSR", "OSEDiff", "DifFace"):
-            config = MULTIPURPOSE_MODELS[name]
-            self.assertIn("backend", config)
-            self.assertIn(config["backend"], DIFFUSION_RESTORERS)
-        # OSEDiff has no direct download URL (Google Drive only), the others do.
-        self.assertIsNone(MULTIPURPOSE_MODELS["OSEDiff"]["model_file"])
-        for name in ("DiffBIR", "SUPIR", "StableSR", "SeeSR", "CCSR", "DifFace"):
-            self.assertIsNotNone(MULTIPURPOSE_MODELS[name]["model_file"])
+class UnimplementedFaceModelTests(unittest.TestCase):
+    """Catalog entries whose backend is deliberately absent must fail loudly."""
 
-    def test_diffusion_models_fail_fast_without_backend(self):
-        """Selecting a diffusion restorer must raise a clear load error
-        instead of silently producing the weak classical estimate."""
-        for name, repo_fragment in (("DiffBIR", "XPixelGroup/DiffBIR"), ("DifFace", "czczup/DifFace")):
-            with self.assertRaises(ModelLoadError) as ctx:
-                pipeline = MultipurposeRestorationPipeline(model_name=name)
-                pipeline.load_model()
-            message = str(ctx.exception)
-            self.assertIn(name, message)
-            self.assertIn(repo_fragment, message)
+    def test_restoreformer_plus_plus_reports_the_missing_backend(self):
+        from src.processing.face.pipeline import FaceRecoveryPipeline
 
-    def test_classical_models_load_trivially(self):
-        pipeline = MultipurposeRestorationPipeline(model_name="RealBasicVSR")
-        self.assertTrue(pipeline.load_model())
-        self.assertEqual(pipeline._backend, "classical")
+        registry = get_registry()
+        entry = registry.get_model("RestoreFormer++")
+        self.assertIsNotNone(entry)
+        self.assertFalse(entry.is_implemented)
+        self.assertNotIn("RestoreFormer++", registry.get_available_model_names("Face Recovery"))
 
-    def test_multipurpose_model_lookup_and_listing(self):
-        self.assertIsNone(get_multipurpose_model("DoesNotExist"))
-        # OSEDiff has no model file configured -> cannot be looked up.
-        self.assertIsNone(get_multipurpose_model("OSEDiff"))
-        entries = list_multipurpose_models()
-        names = {entry["name"] for entry in entries}
-        self.assertTrue(names >= {"DiffBIR", "SUPIR", "CCSR", "RealBasicVSR"})
-        for entry in entries:
-            self.assertIn("backend", entry)
+        pipeline = FaceRecoveryPipeline(model_name="RestoreFormer++", device="cpu")
+        with self.assertRaises(ModelLoadError) as context:
+            pipeline.load_model("models/RestoreFormer++.pth")
+        self.assertIn("not bundled", str(context.exception))
+
+    def test_missing_model_file_is_reported(self):
+        from src.processing.face.pipeline import FaceRecoveryPipeline
+
+        pipeline = FaceRecoveryPipeline(model_name="CodeFormer", device="cpu")
+        with self.assertRaises(ModelLoadError) as context:
+            pipeline.load_model(None)
+        self.assertIn("No model file found", str(context.exception))
+
+
+class RestorationCatalogHonestyTests(unittest.TestCase):
+    """The catalog lists diffusion restorers and RealBasicVSR; this build does
+    not ship their runtimes, so they must never be advertised."""
+
+    def test_multipurpose_restoration_is_not_advertised(self):
+        registry = get_registry()
+        self.assertEqual(registry.get_available_model_names("Multipurpose Restoration"), [])
+        self.assertIsNone(get_pipeline_registry().get_pipeline_class("Multipurpose Restoration"))
+
+    def test_realbasicvsr_is_listed_but_not_implemented(self):
+        entry = get_registry().get_model("RealBasicVSR")
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry.arch, "RealBasicVSR")
+        self.assertEqual(entry.requires_module, "src.processing.archs.realbasicvsr_arch")
+        self.assertFalse(entry.is_implemented)
+
+    def test_supir_and_diffusion_entries_have_no_runtime(self):
+        registry = get_registry()
+        for name in ("SUPIR", "SeeSR", "StableSR", "CCSR"):
+            with self.subTest(model=name):
+                entry = registry.get_model(name)
+                self.assertIsNotNone(entry)
+                self.assertIsNone(entry.arch)
+                self.assertFalse(entry.is_implemented)
+
+
+class FaceCheckpointTests(unittest.TestCase):
+    """The bundled checkpoints load 1:1 into the vendored architectures."""
+
+    def _load(self, model_name):
+        from src.processing.face.pipeline import FaceRecoveryPipeline
+
+        checkpoint = Path("models") / CHECKPOINT_FILES[model_name]
+        if not checkpoint.exists():
+            self.skipTest(f"{model_name} checkpoint not downloaded")
+
+        pipeline = FaceRecoveryPipeline(model_name=model_name, device="cpu")
+        self.assertTrue(pipeline.load_model(str(checkpoint)))
+        return pipeline
+
+    def test_codeformer_checkpoint_loads_strictly(self):
+        self._load("CodeFormer")
+
+    def test_gfpgan_checkpoint_loads_strictly(self):
+        self._load("GFPGAN")
+
+    def test_restoreformer_checkpoint_loads_strictly(self):
+        self._load("RestoreFormer")
 
 
 if __name__ == "__main__":

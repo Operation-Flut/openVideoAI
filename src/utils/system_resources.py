@@ -579,3 +579,69 @@ def get_system_hardware_info() -> Dict[str, Any]:
         },
         "capabilities": get_platform_capabilities(),
     }
+
+
+def get_system_info() -> Dict[str, Any]:
+    """Get system information for health checks and status APIs.
+
+    Returns the API-facing shape used by ``SystemStatus`` (numeric
+    ``cpu_threads`` / ``ram_gb`` / ``vram_gb`` and a structured ``gpu``
+    dict) while keeping the legacy flat strings for other consumers.
+    """
+    info = get_system_hardware_info()
+    gpus = info.get("gpus") or []
+
+    # Prefer a selectable accelerator (cuda/hip/metal/dml), then any
+    # OS-detected hardware adapter, and fall back to nothing.
+    primary = next(
+        (
+            g
+            for g in gpus
+            if g.get("selectable") and g.get("backend") not in ("cpu",)
+        ),
+        None,
+    ) or next((g for g in gpus if g.get("backend") == "hardware"), None)
+
+    vram_gb: Optional[float] = None
+    if primary and primary.get("vram"):
+        vram_gb = float(primary["vram"])
+    elif info.get("vram") not in (None, "", "N/A"):
+        try:
+            vram_gb = float(str(info["vram"]).split()[0])
+        except (ValueError, IndexError):
+            vram_gb = None
+
+    ram_details = info.get("ram_details") or {}
+    cpu_details = info.get("cpu_details") or {}
+
+    gpu_dict: Optional[Dict[str, Any]] = None
+    if primary:
+        raw_index = int(primary.get("index", 0))
+        gpu_dict = {
+            "name": primary.get("name") or info.get("gpu") or "Unknown GPU",
+            "vram_gb": vram_gb,
+            "backend": primary.get("backend", "unknown"),
+            "device_id": raw_index if raw_index >= 0 else 0,
+        }
+    elif info.get("gpu"):
+        gpu_dict = {
+            "name": str(info["gpu"]),
+            "vram_gb": vram_gb,
+            "backend": "cpu",
+            "device_id": 0,
+        }
+
+    return {
+        # API-facing shape (SystemStatus / health endpoints)
+        "cpu_threads": int(cpu_details.get("threads") or cpu_details.get("cores") or 0),
+        "ram_gb": float(ram_details.get("total_gb") or 0),
+        "vram_gb": vram_gb,
+        "gpu": gpu_dict,
+        # Legacy flat strings kept for other consumers
+        "cpu": info.get("cpu"),
+        "ram": info.get("ram"),
+        "vram": info.get("vram"),
+        "os": info.get("os"),
+        "python": info.get("python"),
+        "hardware": info,
+    }

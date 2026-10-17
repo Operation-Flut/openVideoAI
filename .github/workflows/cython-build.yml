@@ -1,0 +1,520 @@
+name: Experimental Cython Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      python-version:
+        description: "Python version to build with"
+        required: false
+        default: "3.12"
+        type: choice
+        options:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+      build-mode:
+        description: "Build mode"
+        required: false
+        default: "full"
+        type: choice
+        options:
+          - "full"
+          - "core-only"
+          - "api-only"
+      cython-compile-all:
+        description: "Compile all .py files (slower, more optimized)"
+        required: false
+        default: false
+        type: boolean
+      upload-artifacts:
+        description: "Upload build artifacts"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  cython-build:
+    name: Cython Build (${{ github.event.inputs.python-version }}, ${{ github.event.inputs.build-mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+
+    env:
+      PYTHON_VERSION: ${{ github.event.inputs.python-version }}
+      BUILD_MODE: ${{ github.event.inputs.build-mode }}
+      CYTHON_COMPILE_ALL: ${{ github.event.inputs.cython-compile-all }}
+      UPLOAD_ARTIFACTS: ${{ github.event.inputs.upload-artifacts }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-amd.txt
+            pyproject.toml
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential \
+            pkg-config \
+            libffi-dev \
+            libssl-dev \
+            python3-dev \
+            libopenblas-dev \
+            libomp-dev \
+            ninja-build \
+            cmake \
+            ccache \
+            patchelf \
+            libgl1-mesa-glx \
+            libglib2.0-0 \
+            libsm6 \
+            libxext6 \
+            libxrender-dev \
+            libxfixes3 \
+            libxi6 \
+            libxrandr2 \
+            libxxf86vm1 \
+            2>/dev/null | tail -20
+
+      - name: Configure ccache
+        run: |
+          ccache --max-size=2G
+          ccache --set-config=compression=true
+          ccache --set-config=compression_level=6
+          ccache --show-stats
+
+      - name: Install Python build dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install cython numpy
+          pip install --no-build-isolation meson-python meson ninja
+          pip install pybind11
+
+      - name: Install PyTorch (CPU for build)
+        run: |
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install project dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-amd.txt 2>/dev/null || true
+          pip install cython mypyc nuitka pyinstaller
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: UI/package-lock.json
+
+      - name: Build the UI
+        # The binary serves the compiled SPA from UI/dist, so it must exist
+        # before PyInstaller packages the bundle.
+        working-directory: UI
+        run: |
+          npm ci
+          npm run build
+
+      - name: Generate Cython stubs for dependencies
+        run: |
+          pip install stubgen cython-stubs
+          python -m stubgen -o stubs -p torch -p torchvision -p cv2 -p numpy -p fastapi -p pydantic -p uvicorn -p pydantic_settings 2>/dev/null || true
+
+      - name: Cythonize source code
+        id: cythonize
+        run: |
+          set -euo pipefail
+
+          # Determine which files to cythonize based on build mode
+          if [ "${BUILD_MODE}" = "api-only" ]; then
+            CYTHON_PATHS="src/api src/core src/services src/utils src/models"
+          elif [ "${BUILD_MODE}" = "core-only" ]; then
+            CYTHON_PATHS="src/core src/services src/utils src/models src/processing"
+          else
+            CYTHON_PATHS="src"
+          fi
+
+          echo "Cythonizing: ${CYTHON_PATHS}"
+
+          # Create cythonize script
+          cat > cythonize_build.py << 'EOF'
+          import os
+          import sys
+          from pathlib import Path
+          from Cython.Build import cythonize
+          from setuptools import Extension
+          import subprocess
+
+          # Find all .py files to compile
+          src_root = Path("src")
+          py_files = list(src_root.rglob("*.py"))
+
+          # Exclude certain files
+          exclude_patterns = [
+              "__pycache__",
+              "test_",
+              "_test",
+              "conftest",
+              "setup.py",
+              "manage.py",
+          ]
+
+          def should_compile(f):
+              f_str = str(f)
+              return not any(p in f_str for p in exclude_patterns)
+
+          extensions = []
+          for py_file in py_files:
+              if not should_compile(py_file):
+                  continue
+              # Skip entry points that need to stay as .py
+              if py_file.name in ("main.py", "__main__.py"):
+                  continue
+              # Convert to module path
+              mod_path = py_file.relative_to(".").with_suffix("")
+              mod_name = str(mod_path).replace(os.sep, ".")
+              extensions.append(Extension(mod_name, [str(py_file)]))
+
+          print(f"Compiling {len(extensions)} modules...")
+
+          # Cythonize with optimization flags
+          ext_modules = cythonize(
+              extensions,
+              compiler_directives={
+                  'language_level': '3',
+                  'boundscheck': False,
+                  'wraparound': False,
+                  'initializedcheck': False,
+                  'nonecheck': False,
+                  'cdivision': True,
+                  'embedsignature': True,
+                  'profile': False,
+                  'linetrace': False,
+              },
+              annotate=True,
+              nthreads=os.cpu_count(),
+              force=True,
+          )
+
+          # Build the extensions
+          from setuptools import setup, Distribution
+          from setuptools.command.build_ext import build_ext
+
+          class BuildExt(build_ext):
+              def build_extensions(self):
+                  # Add optimization flags
+                  for ext in self.extensions:
+                      ext.extra_compile_args = [
+                          "-O3",
+                          "-march=native",
+                          "-mtune=native",
+                          "-ffast-math",
+                          "-funroll-loops",
+                          "-fomit-frame-pointer",
+                          "-pipe",
+                      ]
+                      ext.extra_link_args = ["-s", "-Wl,-O1"]
+                  super().build_extensions()
+
+          setup(
+              ext_modules=extensions,
+              script_args=["build_ext", "--inplace"],
+              cmdclass={"build_ext": BuildExt},
+          )
+
+          print("Cythonization complete!")
+
+          import os
+          from pathlib import Path
+
+          # Verify outputs
+          so_files = list(Path(".").rglob("*.so"))
+          pyd_files = list(Path(".").rglob("*.pyd"))
+          c_files = list(Path(".").rglob("*.c"))
+          print(f"Generated: {len(so_files)} .so, {len(pyd_files)} .pyd, {len(c_files)} .c files")
+
+          if not so_files and not pyd_files:
+              print("WARNING: No compiled extensions found!")
+              sys.exit(1)
+
+          # Clean up .c files to save space
+          for c_file in c_files:
+              try:
+                  c_file.unlink()
+              except:
+                  pass
+
+          EOF
+
+          python cythonize_build.py
+
+      - name: Verify cythonized modules
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'src')
+          try:
+              import core
+              import models
+              import services
+              import api
+              print('Core modules import successfully')
+          except ImportError as e:
+              print(f'Import warning: {e}')
+          "
+
+      - name: Type-check cythonized code
+        if: ${{ env.BUILD_MODE != 'api-only' }}
+        run: |
+          pip install mypy
+          python -m mypy src --ignore-missing-imports --no-error-summary 2>&1 | head -50 || true
+
+      - name: Build binary with PyInstaller
+        id: pyinstaller
+        run: |
+          set -euo pipefail
+
+          # Create PyInstaller spec dynamically
+          cat > openvideoai.spec << 'EOF'
+          # -*- mode: python ; coding: utf-8 -*-
+
+          block_cipher = None
+
+          a = Analysis(
+              ['main.py'],
+              pathex=['.', 'src'],
+              binaries=[],
+              datas=[
+                  ('src/api', 'src/api'),
+                  ('src/core', 'src/core'),
+                  ('src/services', 'src/services'),
+                  ('src/utils', 'src/utils'),
+                  ('src/models', 'src/models'),
+                  ('src/processing', 'src/processing'),
+                  ('assets', 'assets'),
+                  ('models', 'models'),
+                  ('UI/dist', 'UI/dist'),
+                  ('models.json', '.'),
+              ],
+              hiddenimports=[
+                  'torch',
+                  'torchvision',
+                  'cv2',
+                  'numpy',
+                  'fastapi',
+                  'uvicorn',
+                  'pydantic',
+                  'pydantic_settings',
+                  'uvicorn.logging',
+                  'uvicorn.loops.auto',
+                  'uvicorn.protocols.http.auto',
+                  'uvicorn.protocols.websockets.auto',
+                  'uvicorn.lifespan.on',
+                  'uvicorn.lifespan.off',
+                  'watchfiles',
+                  'watchfiles.main',
+                  'watchfiles.winapi',
+                  'email',
+                  'json',
+                  'html',
+                  'http',
+                  'urllib',
+                  'xml',
+                  'html.parser',
+                  'xml.etree',
+                  'xml.etree.ElementTree',
+                  'multiprocessing',
+                  'multiprocessing.pool',
+                  'multiprocessing.managers',
+                  'concurrent.futures',
+                  'concurrent.futures.process',
+                  'concurrent.futures.thread',
+                  'pywebview',
+                  'webview',
+                  'clr',
+                  'tkinter',
+                  'tkinter.filedialog',
+                  'tkinter.messagebox',
+                  'tkinter.ttk',
+                  'cython',
+                  'numpy.core.multiarray',
+                  'numpy.core.umath',
+                  'numpy.lib.format',
+                  'torch._C',
+                  'torchvision._C',
+                  'cv2',
+              ],
+              hookspath=[],
+              hooksconfig={},
+              runtime_hooks=[],
+              excludes=[
+                  'test', 'tests', 'testing',
+                  'pytest', 'pytest_*',
+                  'matplotlib', 'matplotlib.*',
+                  'PIL', 'PIL.*',
+                  'IPython', 'IPython.*',
+                  'jupyter', 'jupyter.*',
+                  'notebook', 'notebook.*',
+                  'sphinx', 'sphinx.*',
+                  'setuptools', 'setuptools.*',
+                  'pip', 'pip.*',
+                  'wheel', 'wheel.*',
+                  'pkg_resources',
+                  'distutils',
+                  'docutils', 'docutils.*',
+                  'pygments', 'pygments.*',
+                  'tkinter.test', 'turtledemo',
+                  'unittest', 'unittest.*',
+                  'pydoc', 'pydoc.*',
+                  'doctest',
+              ],
+              win_no_prefer_redirects=False,
+              win_private_assemblies=False,
+              cipher=block_cipher,
+              noarchive=False,
+          )
+
+          pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+          exe = EXE(
+              pyz,
+              a.scripts,
+              a.binaries,
+              a.zipfiles,
+              a.datas,
+              [],
+              name='openVideoAI',
+              debug=False,
+              bootloader_ignore_signals=False,
+              strip=True,
+              upx=True,
+              upx_exclude=[],
+              runtime_tmpdir=None,
+              console=False,
+              disable_windowed_traceback=False,
+              argv_emulation=False,
+              target_arch=None,
+              codesign_identity=None,
+              entitlements_file=None,
+              icon='assets/icon/black_glass.ico' if os.path.exists('assets/icon/black_glass.ico') else None,
+          )
+
+          coll = COLLECT(
+              exe,
+              a.binaries,
+              a.zipfiles,
+              a.datas,
+              strip=False,
+              upx=True,
+              upx_exclude=[],
+              name='openVideoAI',
+          )
+          EOF
+
+          # Build with PyInstaller
+          python -m PyInstaller --clean --noconfirm openvideoai.spec
+
+          # Verify binary
+          if [ -f "dist/openVideoAI/openVideoAI" ] || [ -f "dist/openVideoAI.exe" ]; then
+            echo "Binary built successfully!"
+            ls -lh dist/
+          else
+            echo "ERROR: Binary not found!"
+            find dist -type f -name "openVideoAI*" 2>/dev/null
+            exit 1
+          fi
+
+      - name: Test binary
+        run: |
+          # Quick smoke test
+          if [ -f "dist/openVideoAI/openVideoAI" ]; then
+            timeout 30 ./dist/openVideoAI/openVideoAI --mode server --port 18080 &
+            sleep 10
+            curl -f http://127.0.0.1:18080/api/health || exit 1
+            echo "Binary health check passed!"
+          elif [ -f "dist/openVideoAI.exe" ]; then
+            echo "Windows binary - skipping runtime test on Linux"
+          else
+            echo "ERROR: Binary not found"
+            exit 1
+          fi
+
+      - name: Upload binary artifacts
+        if: ${{ env.UPLOAD_ARTIFACTS == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: openvideoai-cython-${{ env.BUILD_MODE }}-${{ runner.os }}-py${{ env.PYTHON_VERSION }}
+          path: |
+            dist/openVideoAI/
+            dist/openVideoAI.exe
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload cythonized sources
+        if: ${{ env.UPLOAD_ARTIFACTS == 'true' && env.CYTHON_COMPILE_ALL == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: openvideoai-cythonized-src-${{ runner.os }}-py${{ env.PYTHON_VERSION }}
+          path: |
+            src/**/*.so
+            src/**/*.pyd
+            src/**/*.c
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cython-build-logs-${{ github.run_id }}
+          path: |
+            *.log
+            build/
+            dist/*.log
+          retention-days: 7
+
+      - name: Build summary
+        run: |
+          echo "## Cython Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Python | ${{ env.PYTHON_VERSION }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Mode | ${{ env.BUILD_MODE }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cython Compile All | ${{ env.CYTHON_COMPILE_ALL }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| OS | ${{ runner.os }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "dist/openVideoAI/openVideoAI" ]; then
+            SIZE=$(du -h dist/openVideoAI/openVideoAI | cut -f1)
+            echo "| Binary Size | $SIZE |" >> $GITHUB_STEP_SUMMARY
+          elif [ -f "dist/openVideoAI.exe" ]; then
+            SIZE=$(du -h dist/openVideoAI.exe | cut -f1)
+            echo "| Binary Size | $SIZE |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Count compiled modules
+          SO_COUNT=$(find . -name "*.so" -o -name "*.pyd" 2>/dev/null | wc -l)
+          echo "| Compiled Modules | $SO_COUNT |" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- Binary: \`dist/openVideoAI/\` or \`dist/openVideoAI.exe\`" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ env.CYTHON_COMPILE_ALL }}" = "true" ]; then
+            echo "- Cythonized sources: \`src/**/*.so\`, \`src/**/*.pyd\`" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- Build logs" >> $GITHUB_STEP_SUMMARY

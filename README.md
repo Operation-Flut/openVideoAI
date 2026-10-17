@@ -70,8 +70,9 @@ The catalog includes image and video restoration models for upscaling, face
 recovery, denoising, sharpening, and frame interpolation, alongside color
 transfer models such as NLUT, Deep Color Transfer, and Reinhard Transfer. It
 also includes pure-math (non-AI) optical-flow algorithms for frame
-interpolation (Farnebäck, DIS, Dual TV-L1, Lucas-Kanade, EpicFlow) that run
-directly on CPU with no model download.
+interpolation (Farnebäck, DIS, Dual TV-L1, Lucas-Kanade) that run directly on
+CPU with no model download. Farnebäck, DIS and Lucas-Kanade work out of the
+box; Dual TV-L1 additionally needs `opencv-contrib-python`.
 
 Each entry declares its compute requirements (`isAi`, `requiresCuda`,
 `requiresMetal`, `canRunOnCpu`) in `models.json`. CUDA-required models can only

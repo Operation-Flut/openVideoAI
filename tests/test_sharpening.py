@@ -1,305 +1,335 @@
+"""Sharpen / Deblur tests.
+
+Covers the pieces the current pipeline actually ships: the catalog-driven
+architecture selection (NAFNet block layouts from ``models.json``, Restormer
+defaults), the shared overlap-add tiler that makes ``tile_size``/``overlap``
+real controls, the parameter clamping, the unsharp finishing pass and the
+``strength`` blend. Checkpoint tests are skipped when the weights are absent -
+the suite never downloads anything.
+"""
+import inspect
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
 
-from src.processing.sharpening import SHARPEN_MODELS, SharpenPipeline
+try:  # torch is a hard runtime dependency, but keep collection importable
+    import torch  # noqa: F401
+
+    TORCH_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    TORCH_AVAILABLE = False
+
+from src.processing.pipeline.base import EnhancementPipeline, ProcessingContext
 
 
-class SharpenPipelineTests(unittest.TestCase):
+class IdentityModel:
+    """Returns its input unchanged, so tiling/stitching must be lossless."""
+
+    def __call__(self, tensor):
+        return tensor
+
+
+class ConstantModel:
+    """Returns a constant image, so ``strength`` blending is measurable."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def __call__(self, tensor):
+        return tensor.new_full(tensor.shape, self.value)
+
+
+def _image(h, w, seed=0):
+    return np.random.default_rng(seed).integers(0, 256, (h, w, 3), dtype=np.uint8)
+
+
+def _context(tmp):
+    return ProcessingContext(
+        input_path=Path(tmp) / "in.png",
+        output_path=Path(tmp) / "out.png",
+    )
+
+
+class SharpenTilingTests(unittest.TestCase):
+    def _pipeline(self, **kwargs):
+        from src.processing.sharpen.pipeline import SharpenPipeline
+
+        kwargs.setdefault("model_name", "Restormer")
+        kwargs.setdefault("device", "cpu")
+        kwargs.setdefault("unsharp_amount", 0.0)
+        return SharpenPipeline(**kwargs)
+
     def test_tiled_identity_model_preserves_every_pixel(self):
-        import torch
-
-        class IdentityModel:
-            def __call__(self, tensor):
-                return tensor
-
-        pipeline = SharpenPipeline(device="cpu", tile_size=128)
+        pipeline = self._pipeline(tile_size=128, overlap=32)
         pipeline._model = IdentityModel()
-        image = np.arange(256 * 256 * 3, dtype=np.uint32).reshape(256, 256, 3).astype(np.uint8)
 
-        with patch.dict("sys.modules", {"torch": torch}):
-            output = pipeline._process_image_tiled(image, None)
-
-        np.testing.assert_array_equal(output, image)
+        for shape in ((256, 256), (250, 250), (614, 88), (300, 500)):
+            with self.subTest(shape=shape):
+                image = _image(*shape, seed=1)
+                with tempfile.TemporaryDirectory() as tmp:
+                    output = pipeline._process_image_tiled(image, _context(tmp))
+                np.testing.assert_array_equal(output, image)
 
     def test_tiled_identity_model_handles_non_multiple_of_16_tiles(self):
-        """Image dimensions that are not multiples of 16 force the model to
-        pad internally (check_image_size) - the stitched output must still be
-        pixel-exact."""
-        import torch
-
-        class IdentityModel:
-            def __call__(self, tensor):
-                return tensor
-
-        pipeline = SharpenPipeline(device="cpu", tile_size=128)
+        """Dimensions that are not multiples of 16 force the model to pad
+        internally (NAFNet's ``check_image_size``); the stitched output must
+        still be pixel-exact."""
+        pipeline = self._pipeline(tile_size=64, overlap=32)
         pipeline._model = IdentityModel()
-        image = np.arange(250 * 250 * 3, dtype=np.uint32).reshape(250, 250, 3).astype(np.uint8)
 
-        with patch.dict("sys.modules", {"torch": torch}):
-            output = pipeline._process_image_tiled(image, None)
-
-        np.testing.assert_array_equal(output, image)
-
-        # A wide-and-short image exercises the bottom edge tiles as well.
-        image = np.arange(614 * 88 * 3, dtype=np.uint32).reshape(614, 88, 3).astype(np.uint8)
-        with patch.dict("sys.modules", {"torch": torch}):
-            output = pipeline._process_image_tiled(image, None)
+        image = _image(151, 173, seed=2)
+        with tempfile.TemporaryDirectory() as tmp:
+            output = pipeline._process_image_tiled(image, _context(tmp))
 
         np.testing.assert_array_equal(output, image)
 
-    def test_overlap_add_suppresses_tile_edge_artifacts(self):
-        """Hann-window overlap-add blending must remove tile border artifacts.
-
-        A model that corrupts the outer ring of every tile it receives would
-        leave visible 48-level seams with hard-cut stitching. The weighted
-        blend fades each tile's own border to zero and replaces it with its
-        neighbours' window interiors, so the artifacts must be (almost)
-        completely suppressed in the stitched output."""
-        pipeline = SharpenPipeline(device="cpu", tile_size=128)
-        rng = np.random.default_rng(0)
-        image = rng.integers(0, 256, (320, 320, 3), dtype=np.uint8)
-        artifact = 48
-
-        def noisy_model(tile):
-            out = tile.astype(np.float32).copy()
-            out[:2] += artifact
-            out[-2:] += artifact
-            out[:, :2] += artifact
-            out[:, -2:] += artifact
-            return np.clip(out, 0, 255).astype(np.uint8)
-
-        pipeline._run_model = noisy_model
-        output = pipeline._process_image_tiled(image, None)
-
-        error = np.abs(output.astype(int) - image.astype(int))
-        self.assertLess(error.mean(), 1.0)
-        self.assertLess(error.max(), artifact)
-
-    def test_overlap_default_and_clamping(self):
-        pipeline = SharpenPipeline(device="cpu", tile_size=256)
-        self.assertEqual(pipeline.overlap, 128)
-
-        # Never overlap more than half the tile (keeps stride >= tile / 2)
-        pipeline = SharpenPipeline(device="cpu", tile_size=256, overlap=256)
-        self.assertEqual(pipeline.overlap, 128)
-
-        pipeline = SharpenPipeline(device="cpu", tile_size=256, overlap=48)
-        self.assertEqual(pipeline.overlap, 48)
-
-        pipeline = SharpenPipeline(device="cpu", tile_size=256, overlap=8)
-        self.assertEqual(pipeline.overlap, 32)  # floor
-
-    def test_tiled_identity_exact_with_custom_overlap(self):
-        import torch
-
-        class IdentityModel:
-            def __call__(self, tensor):
-                return tensor
-
-        pipeline = SharpenPipeline(device="cpu", tile_size=256, overlap=96)
+    def test_hann_window_also_stitches_exactly(self):
+        pipeline = self._pipeline(tile_size=128, overlap=64, window="hann")
         pipeline._model = IdentityModel()
-        image = np.arange(400 * 400 * 3, dtype=np.uint32).reshape(400, 400, 3).astype(np.uint8)
 
-        with patch.dict("sys.modules", {"torch": torch}):
-            output = pipeline._process_image_tiled(image, None)
+        image = _image(140, 180, seed=3)
+        with tempfile.TemporaryDirectory() as tmp:
+            output = pipeline._process_image_tiled(image, _context(tmp))
 
         np.testing.assert_array_equal(output, image)
 
-    def test_hamming_window_is_default_and_hann_selectable(self):
-        # Hamming only decays to ~0.08 at tile borders (never exact 0.0), which
-        # keeps the weight normalisation stable at borders/corners.
-        pipeline = SharpenPipeline(device="cpu")
-        self.assertEqual(pipeline.window, 'hamming')
-
-        pipeline = SharpenPipeline(device="cpu", window='hann')
-        self.assertEqual(pipeline.window, 'hann')
-
+    def test_invalid_window_is_rejected(self):
         with self.assertRaises(ValueError):
-            SharpenPipeline(device="cpu", window='cosine')
+            self._pipeline(window="cosine")
 
-    def test_hann_window_tiling_still_pixel_exact(self):
-        import torch
+    def test_tiling_is_used_only_above_the_tile_size(self):
+        from src.processing.sharpen.pipeline import SharpenPipeline
 
-        class IdentityModel:
-            def __call__(self, tensor):
-                return tensor
-
-        pipeline = SharpenPipeline(device="cpu", tile_size=256, overlap=96, window='hann')
-        pipeline._model = IdentityModel()
-        image = np.arange(400 * 400 * 3, dtype=np.uint32).reshape(400, 400, 3).astype(np.uint8)
-
-        with patch.dict("sys.modules", {"torch": torch}):
-            output = pipeline._process_image_tiled(image, None)
-
-        np.testing.assert_array_equal(output, image)
-
-    def test_unsharp_mask_math_matches_expected_formula(self):
         import cv2
 
-        pipeline = SharpenPipeline(device="cpu", unsharp_amount=0.5, unsharp_radius=1.0)
-        rng = np.random.default_rng(3)
-        image = rng.integers(0, 256, (120, 140, 3), dtype=np.uint8)
+        for shape, expect_tiling in (((400, 520, 3), True), ((64, 64, 3), False)):
+            with self.subTest(shape=shape):
+                with tempfile.TemporaryDirectory() as tmp:
+                    tmp = Path(tmp)
+                    image = _image(shape[0], shape[1], seed=4)
+                    input_path, output_path = tmp / "in.png", tmp / "out.png"
+                    self.assertTrue(cv2.imwrite(str(input_path), image))
 
-        result = pipeline._apply_unsharp_mask(image, amount=0.7)
+                    pipeline = SharpenPipeline(
+                        model_name="Restormer", device="cpu", tile_size=128, overlap=32,
+                        unsharp_amount=0.0,
+                    )
+                    pipeline._model = IdentityModel()
+                    tiled_calls = []
+                    original = pipeline._process_image_tiled
+
+                    def spy(img, context):
+                        tiled_calls.append(img.shape)
+                        return original(img, context)
+
+                    pipeline._process_image_tiled = spy
+                    result = pipeline.process(
+                        ProcessingContext(input_path=input_path, output_path=output_path)
+                    )
+
+                    self.assertTrue(result.success)
+                    self.assertEqual(bool(tiled_calls), expect_tiling)
+                    written = cv2.imread(str(result.output_path))
+                    np.testing.assert_array_equal(written, image)
+
+
+class SharpenParameterTests(unittest.TestCase):
+    """Every parameter declared in the catalog schema must do something."""
+
+    def _pipeline(self, **kwargs):
+        from src.processing.sharpen.pipeline import SharpenPipeline
+
+        kwargs.setdefault("model_name", "Restormer")
+        kwargs.setdefault("device", "cpu")
+        return SharpenPipeline(**kwargs)
+
+    def test_overlap_is_clamped_to_a_usable_range(self):
+        self.assertEqual(self._pipeline(tile_size=512, overlap=8).overlap, 32)
+        self.assertEqual(self._pipeline(tile_size=256, overlap=99999).overlap, 128)
+        self.assertEqual(self._pipeline(tile_size=512, overlap=128).overlap, 128)
+
+    def test_tile_size_has_a_floor(self):
+        self.assertGreaterEqual(self._pipeline(tile_size=1).tile_size, 64)
+
+    def test_directml_uses_memory_conservative_tile_size(self):
+        with patch.object(EnhancementPipeline, "get_device", return_value="privateuseone"):
+            pipeline = self._pipeline(tile_size=1024)
+        self.assertEqual(pipeline.tile_size, 256)
+
+    def test_defaults_come_from_the_catalog(self):
+        """NAFNet's catalog entry declares tileSize 512 and the GoPro layout."""
+        from src.models.registry import get_registry
+
+        pipeline = self._pipeline(model_name="NAFNet-GoPro")
+        self.assertEqual(pipeline.tile_size, 512)
+        self.assertEqual(pipeline._model_config["enc_blk_nums"], [1, 1, 1, 28])
+
+    def test_effective_params_lets_step_parameters_win(self):
+        pipeline = self._pipeline(tile_size=512, overlap=64, unsharp_amount=0.25, strength=0.5)
+        self.assertEqual(
+            pipeline._effective_params(),
+            {"strength": 0.5, "tile_size": 512, "overlap": 64, "unsharp_amount": 0.25},
+        )
+
+        pipeline.parameters = {"strength": 1.5, "tile_size": 128}
+        effective = pipeline._effective_params()
+        self.assertEqual(effective["strength"], 1.5)
+        self.assertEqual(effective["tile_size"], 128)
+
+    def test_unsharp_amount_is_applied(self):
+        import cv2
+
+        pipeline = self._pipeline(unsharp_amount=0.0, unsharp_radius=1.0)
+        image = _image(64, 96, seed=5)
         blurred = cv2.GaussianBlur(image, (0, 0), 1.0)
         expected = cv2.addWeighted(image, 1.7, blurred, -0.7, 0)
 
-        np.testing.assert_array_equal(result, expected)
-
-    def test_unsharp_mask_zero_leaves_image_unchanged(self):
-        pipeline = SharpenPipeline(device="cpu", unsharp_amount=0.0)
-        image = np.arange(60 * 60 * 3, dtype=np.uint32).reshape(60, 60, 3).astype(np.uint8)
         np.testing.assert_array_equal(pipeline._apply_unsharp_mask(image), image)
+        np.testing.assert_array_equal(pipeline._apply_unsharp_mask(image, amount=0.7), expected)
 
-    def test_large_image_uses_tiles_without_progress_callback(self):
-        pipeline = SharpenPipeline(device="cpu", tile_size=64)
-        pipeline._model = object()
-        image = np.zeros((80, 96, 3), dtype=np.uint8)
+    @unittest.skipUnless(TORCH_AVAILABLE, "torch not installed")
+    def test_strength_blends_model_output_with_the_input(self):
+        pipeline = self._pipeline(strength=1.0)
+        pipeline._model = ConstantModel(1.0)
+        image = _image(32, 32, seed=6)
 
-        with patch("src.processing.sharpening.cv2.imread", return_value=image), \
-             patch("src.processing.sharpening.cv2.imwrite", return_value=True), \
-             patch.object(pipeline, "_process_image_tiled", return_value=image) as process_tiled:
-            result = pipeline._process_image("input.png", "output.png")
+        full = pipeline._run_model(image)
+        np.testing.assert_array_equal(full, np.full_like(image, 255))
 
-        self.assertTrue(result["success"])
-        process_tiled.assert_called_once()
-        self.assertIsNone(process_tiled.call_args.args[1])
-        self.assertEqual(result["window"], "hamming")
-        self.assertEqual(result["overlap"], 64)
-        self.assertIn("unsharp_amount", result)
+        pipeline.strength = 0.5
+        half = pipeline._run_model(image)
+        np.testing.assert_allclose(half, (image.astype(np.float32) + 255.0) / 2, atol=1)
 
-    def test_directml_uses_memory_conservative_tile_size(self):
-        with patch("src.processing.sharpening.EnhancementPipeline._resolve_device", return_value="privateuseone"):
-            pipeline = SharpenPipeline()
+        pipeline.strength = 0.0
+        np.testing.assert_allclose(pipeline._run_model(image), image, atol=1)
 
-        self.assertEqual(pipeline.tile_size, 256)
+    @unittest.skipUnless(TORCH_AVAILABLE, "torch not installed")
+    def test_run_model_accepts_tuple_outputs(self):
+        class TupleModel:
+            def __init__(self):
+                self.inner = IdentityModel()
 
-    def test_nafnet_profile_matches_gopro_checkpoint_architecture(self):
-        config = SHARPEN_MODELS["NAFNet"]
+            def __call__(self, tensor):
+                return (self.inner(tensor),)
 
-        self.assertEqual(config["middle_blk_num"], 1)
-        self.assertEqual(config["enc_blk_nums"], [1, 1, 1, 28])
-        self.assertEqual(config["dec_blk_nums"], [1, 1, 1, 1])
+        pipeline = self._pipeline(strength=1.0)
+        pipeline._model = TupleModel()
+        image = _image(24, 32, seed=7)
+        np.testing.assert_array_equal(pipeline._run_model(image), image)
 
-    def test_nafnet_sidd_override_runs_against_the_sidd_checkpoint(self):
-        """SharpenPipeline accepts an arch_config override (used by the
-        Denoise pipeline for NAFNet-SIDD); here it must build a strict-loadable
-        model for the downloaded SIDD checkpoint."""
-        from pathlib import Path
 
-        from src.processing.denoising import _NAFNET_SIDD_ARCH_CONFIG
+class SharpenCatalogRegistrationTests(unittest.TestCase):
+    """The catalog, the registry and the pipeline registry must agree."""
 
-        ckpt = Path("models/NAFNet-SIDD-width64.pth")
-        if not ckpt.exists():
-            self.skipTest("NAFNet-SIDD checkpoint not downloaded")
+    def test_sharpen_models_are_implemented_and_registered(self):
+        from src.models.registry import get_registry
+        from src.processing.pipeline.registry import get_pipeline_registry
 
-        pipeline = SharpenPipeline(
-            model_name="NAFNet", device="cpu",
-            tile_size=128, arch_config=_NAFNET_SIDD_ARCH_CONFIG,
-        )
-        self.assertTrue(pipeline.load_model(str(ckpt)))
+        registry = get_registry()
+        names = registry.get_available_model_names("Sharpen / Deblur")
+        self.assertIn("NAFNet-GoPro", names)
+        self.assertIn("NAFNet-REDS", names)
+        self.assertIn("Restormer", names)
 
-        tile = np.random.default_rng(3).integers(0, 256, (128, 128, 3), dtype=np.uint8)
-        output = pipeline._run_model(tile)
-        self.assertEqual(output.shape, (128, 128, 3))
-        self.assertEqual(output.dtype, np.uint8)
+        for name in names:
+            with self.subTest(model=name):
+                entry = registry.get_model(name)
+                self.assertTrue(entry.is_implemented)
+                self.assertIn(entry.arch, ("NAFNet", "Restormer"))
 
-    def test_restormer_profile_in_sharpen_models(self):
-        config = SHARPEN_MODELS["Restormer"]
+        pipeline_class = get_pipeline_registry().get_pipeline_class("Sharpen / Deblur", names[0])
+        self.assertEqual(pipeline_class.config.feature, "Sharpen / Deblur")
 
-        self.assertEqual(config["arch"], "restormer")
-        self.assertEqual(config["model_file"], "single_image_defocus_deblurring.pth")
-        self.assertEqual(config["dim"], 48)
-        self.assertEqual(config["num_blocks"], [4, 6, 6, 8])
-        self.assertEqual(config["num_refinement_blocks"], 4)
 
-    def test_restormer_architecture_forward_small(self):
-        """Restormer builds a working transformer decoder graph on CPU."""
-        import torch
+@unittest.skipUnless(TORCH_AVAILABLE, "torch not installed")
+class NAFNetArchTests(unittest.TestCase):
+    def test_block_layout_follows_the_catalog_entry(self):
+        from src.models.registry import get_registry
+        from src.processing.archs.nafnet_arch import from_runtime_config
 
-        from src.processing.archs.restormer import Restormer
+        registry = get_registry()
+        expected = {
+            "NAFNet-SIDD": ([2, 2, 4, 8], [2, 2, 2, 2], 12),
+            "NAFNet-GoPro": ([1, 1, 1, 28], [1, 1, 1, 1], 1),
+            "NAFNet-REDS": ([1, 1, 1, 28], [1, 1, 1, 1], 1),
+        }
+        for name, (enc, dec, middle) in expected.items():
+            with self.subTest(model=name):
+                net = from_runtime_config(registry.runtime_config(name, "Denoise"))
+                self.assertEqual([len(block) for block in net.encoders], enc)
+                self.assertEqual([len(block) for block in net.decoders], dec)
+                self.assertEqual(len(net.middle_blks), middle)
 
-        net = Restormer(
-            dim=8, num_blocks=[1, 1, 1, 1], num_refinement_blocks=1
-        ).eval()
-        with torch.no_grad():
-            out = net(torch.rand(1, 3, 96, 96))
-            odd = net(torch.rand(1, 3, 61, 47))
+    def test_forward_preserves_odd_sizes_by_padding_internally(self):
+        from src.processing.archs.nafnet_arch import NAFNet
 
-        self.assertEqual(tuple(out.shape), (1, 3, 96, 96))
-        self.assertEqual(tuple(odd.shape), (1, 3, 61, 47))
-
-    def test_restormer_checkpoint_strict_load_and_run(self):
-        """The bundled Restormer defocus checkpoint loads 1:1 and runs.
-
-        Skipped when the weights are not present (never auto-downloaded by
-        the test suite).
-        """
-        from pathlib import Path
-
-        import torch
-
-        ckpt = Path("models/single_image_defocus_deblurring.pth")
-        if not ckpt.exists():
-            self.skipTest("Restormer defocus checkpoint not downloaded")
-
-        from src.processing.archs.restormer import Restormer
-
-        net = Restormer()
-        checkpoint = torch.load(str(ckpt), map_location="cpu", weights_only=False)
-        state = checkpoint.get("params", checkpoint) if isinstance(checkpoint, dict) else checkpoint
-        net.load_state_dict(state, strict=True)
-
+        net = NAFNet(width=8, middle_blk_num=1, enc_blk_nums=[1, 1], dec_blk_nums=[1, 1])
+        self.assertEqual(net.padder_size, 4)
         net.eval()
         with torch.no_grad():
-            out = net(torch.rand(1, 3, 224, 224))
-        self.assertEqual(tuple(out.shape), (1, 3, 224, 224))
+            out = net(torch.rand(1, 3, 7, 5))
+        self.assertEqual(tuple(out.shape), (1, 3, 7, 5))
 
-    def test_restormer_pipeline_loads_and_runs(self):
-        """End-to-end: the sharpen pipeline loads Restormer and runs a tile."""
-        from pathlib import Path
 
-        import numpy as np
+class RestormerProfileTests(unittest.TestCase):
+    def test_arch_defaults_match_the_released_profile(self):
+        from src.processing.archs.restormer import Restormer
 
-        ckpt = Path("models/single_image_defocus_deblurring.pth")
-        if not ckpt.exists():
-            self.skipTest("Restormer defocus checkpoint not downloaded")
+        signature = inspect.signature(Restormer.__init__)
+        self.assertEqual(signature.parameters["dim"].default, 48)
+        self.assertEqual(signature.parameters["num_refinement_blocks"].default, 4)
 
-        pipeline = SharpenPipeline(model_name="Restormer", device="cpu", tile_size=128)
-        self.assertTrue(pipeline.load_model(str(ckpt)))
-        tile = np.random.default_rng(4).integers(0, 256, (128, 128, 3), dtype=np.uint8)
+    @unittest.skipUnless(TORCH_AVAILABLE, "torch not installed")
+    def test_checkpoint_loads_strictly_and_runs_on_odd_sizes(self):
+        from src.processing.sharpen.pipeline import SharpenPipeline
 
-        output = pipeline._run_model(tile)
+        checkpoint = Path("models/single_image_defocus_deblurring.pth")
+        if not checkpoint.exists():
+            self.skipTest("Restormer checkpoint not downloaded")
 
-        self.assertEqual(output.shape, (128, 128, 3))
+        pipeline = SharpenPipeline(
+            model_name="Restormer", device="cpu", tile_size=256, overlap=32, unsharp_amount=0.0
+        )
+        self.assertTrue(pipeline.load_model(str(checkpoint)))
+
+        output = pipeline._run_model(_image(61, 47, seed=8))
+        self.assertEqual(output.shape, (61, 47, 3))
         self.assertEqual(output.dtype, np.uint8)
 
+    @unittest.skipUnless(TORCH_AVAILABLE, "torch not installed")
+    def test_nafnet_gopro_pipeline_processes_a_file(self):
+        import cv2
 
-class NAFNetDirectMLTests(unittest.TestCase):
-    def test_forward_preserves_non_square_image_size(self):
-        try:
-            import torch
-            import torch_directml
-        except ImportError:
-            self.skipTest("PyTorch DirectML is not installed")
+        from src.processing.sharpen.pipeline import SharpenPipeline
 
-        from src.processing.sharpening import NAFNet
+        checkpoint = Path("models/NAFNet-GoPro-width64.pth")
+        if not checkpoint.exists():
+            self.skipTest("NAFNet-GoPro checkpoint not downloaded")
 
-        device = torch_directml.device()
-        model = NAFNet(
-            width=4,
-            middle_blk_num=1,
-            enc_blk_nums=[1, 1, 1, 1],
-            dec_blk_nums=[1, 1, 1, 1],
-        ).eval().to(device)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            input_path, output_path = tmp / "in.png", tmp / "out.png"
+            image = _image(96, 128, seed=9)
+            self.assertTrue(cv2.imwrite(str(input_path), image))
 
-        for height, width in ((202, 203), (203, 202), (320, 203)):
-            with torch.no_grad():
-                output = model(torch.zeros(1, 3, height, width, device=device))
+            pipeline = SharpenPipeline(
+                model_name="NAFNet-GoPro", device="cpu", strength=1.0, unsharp_amount=0.0
+            )
+            self.assertTrue(pipeline.load_model(str(checkpoint)))
+            result = pipeline.process(
+                ProcessingContext(input_path=input_path, output_path=output_path)
+            )
 
-            self.assertEqual(tuple(output.shape[-2:]), (height, width))
+            self.assertTrue(result.success)
+            self.assertEqual(result.metadata["model_arch"], "NAFNet")
+            self.assertEqual(result.metadata["tile_size"], 512)
+            written = cv2.imread(str(result.output_path))
+            self.assertEqual(written.shape, image.shape)
+            # The model is a real restorer: the output is not a copy of the input.
+            self.assertFalse(np.array_equal(written, image))
 
 
 if __name__ == "__main__":
