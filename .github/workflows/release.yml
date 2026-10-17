@@ -206,7 +206,8 @@ jobs:
           if ($env:WINDOWS_BACKEND -eq "directml") {
             pip install -r requirements-amd.txt
           } else {
-            pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/cu128
+            # Pin to specific version known to have CUDA 12.8 support for Python 3.12
+            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu128
           }
 
       - name: Verify Windows PyTorch backend
@@ -230,7 +231,7 @@ jobs:
         # PyInstaller packages the bundle.
         working-directory: UI
         run: |
-          npm ci
+          npm ci --legacy-peer-deps
           npm run build
 
       - name: Build executable with PyInstaller (--onedir for MSI)
@@ -465,13 +466,16 @@ jobs:
           pip install pyinstaller
           case "${LINUX_BACKEND}" in
             cuda)
-              pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/cu128
+              # Pin to specific version known to have CUDA 12.8 support for Python 3.12
+              pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu128
               ;;
             rocm)
-              pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/rocm6.4
+              # Pin to specific version known to have ROCm 6.4 / HIP support for Python 3.12
+              pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/rocm6.4
               ;;
             xpu)
-              pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/xpu
+              # Pin to specific version known to have XPU support for Python 3.12
+              pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/xpu
               ;;
           esac
 
@@ -503,7 +507,7 @@ jobs:
         # PyInstaller packages the bundle.
         working-directory: UI
         run: |
-          npm ci
+          npm ci --legacy-peer-deps
           npm run build
 
       - name: Build executable with PyInstaller
@@ -558,7 +562,7 @@ jobs:
   build-macos:
     name: Build macOS Apple Silicon (Metal)
     needs: release-info
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 90
 
     steps:
@@ -579,6 +583,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
+          # Pin to specific version for macOS Metal/MPS support
+          pip install torch==2.5.1 torchvision==0.20.1
           python - <<'PY'
           import platform
           import torch
@@ -602,7 +608,7 @@ jobs:
         # PyInstaller packages the bundle.
         working-directory: UI
         run: |
-          npm ci
+          npm ci --legacy-peer-deps
           npm run build
 
       - name: Build app bundle with PyInstaller
