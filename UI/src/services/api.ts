@@ -19,6 +19,9 @@ import type {
   ExportOptionsResponse,
   BrowseResponse,
   ExportOptions,
+  UpdateCheckResponse,
+  PreReleaseCheckResponse,
+  UpdateInstallResponse,
 } from '../types/api'
 
 const API_BASE = '/api'
@@ -416,6 +419,32 @@ class ApiService {
 
   async getVersion(): Promise<{ version: string; name: string; description: string }> {
     const response = await this.client.get('/health/version')
+    return response.data
+  }
+
+  /**
+   * Check for a new stable release (GET /update/check).
+   */
+  async checkForUpdate(): Promise<UpdateCheckResponse> {
+    const response = await this.client.get<UpdateCheckResponse>('/update/check')
+    return response.data
+  }
+
+  /**
+   * Check for a new pre-release (GET /update/pre-release).
+   */
+  async checkPreRelease(): Promise<PreReleaseCheckResponse> {
+    const response = await this.client.get<PreReleaseCheckResponse>('/update/pre-release')
+    return response.data
+  }
+
+  /**
+   * Download a release asset (POST /update/install).
+   */
+  async installUpdate(releaseTag: string): Promise<UpdateInstallResponse> {
+    const response = await this.client.post<UpdateInstallResponse>('/update/install', {
+      release_tag: releaseTag,
+    })
     return response.data
   }
 }

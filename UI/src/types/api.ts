@@ -375,3 +375,28 @@ export interface HealthResponse {
   timestamp: string
   uptime_seconds: number
 }
+
+export interface UpdateCheckResponse {
+  current_version: string
+  latest_version: string | null
+  update_available: boolean
+  message?: string
+  error?: string
+}
+
+export interface PreReleaseCheckResponse {
+  current_version: string
+  latest_pre_release_version: string | null
+  latest_pre_release_date: string | null
+  pre_release_available: boolean
+  error?: string
+}
+
+export interface UpdateInstallRequest {
+  release_tag: string
+}
+
+export interface UpdateInstallResponse {
+  asset_path: string
+  asset_name: string
+}

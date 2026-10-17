@@ -477,3 +477,29 @@ class HealthResponse(BaseModel):
     version: str
     timestamp: datetime = Field(default_factory=datetime.now)
     uptime_seconds: float
+
+
+# Update Service
+class UpdateCheckResponse(BaseModel):
+    current_version: str
+    latest_version: Optional[str] = None
+    update_available: bool
+    message: Optional[str] = None
+    error: Optional[str] = None
+
+
+class PreReleaseCheckResponse(BaseModel):
+    current_version: str
+    latest_pre_release_version: Optional[str] = None
+    latest_pre_release_date: Optional[str] = None
+    pre_release_available: bool
+    error: Optional[str] = None
+
+
+class UpdateInstallRequest(BaseModel):
+    release_tag: str = Field(..., pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+class UpdateInstallResponse(BaseModel):
+    asset_path: str
+    asset_name: str

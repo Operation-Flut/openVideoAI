@@ -7,7 +7,7 @@ import {
 import { useSettings, useUpdateSettings, useResetSettings, useExportSettings, useImportSettings } from '../hooks/useSettings'
 import { useExperimental } from '../hooks/useModels'
 import { useUIStore } from '../store'
-import { Button, Select, Slider, Toggle, Input, Badge, Dialog } from '../components/ui'
+import { Button, Select, Slider, Toggle, Input, Badge, Dialog, UpdateSection } from '../components/ui'
 import { clsx } from 'clsx'
 import type { SettingsModel, ComputeBackend, OutputFormat } from '../types/api'
 
@@ -410,6 +410,10 @@ export function SettingsPage() {
                   Failed to save settings
                 </div>
               )}
+
+              <Divider />
+
+              <UpdateSection />
             </Section>
           )}
         </div>

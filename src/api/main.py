@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 
-from .routes import models, processing, settings, health
+from .routes import models, processing, settings, health, update
 from ..core.config import __version__
 from ..core.paths import project_root, exports_dir, temp_processing_dir
 from ..events.bus import get_event_bus
@@ -90,6 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(processing.router, prefix="/api")
     app.include_router(settings.router, prefix="/api")
     app.include_router(health.router, prefix="/api")
+    app.include_router(update.router, prefix="/api")
 
     # Static files for UI (if built)
     ui_dist = project_root() / "UI" / "dist"
