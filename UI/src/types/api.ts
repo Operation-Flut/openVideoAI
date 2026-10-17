@@ -40,8 +40,13 @@ export interface ModelResponse {
   compatible: boolean
   compatibility_reason: string | null
   local_path: string | null
+  // What the model applies to, and the label the backend phrases it with
+  // ("Images and video" / "Video only" / "Images only").
+  media: string
+  media_label: string
   // Extended detail fields (shown in the model details popup)
   full_description?: string | null
+  best_for?: string | null
   filename?: string | null
   module?: string | null
   source_url?: string | null

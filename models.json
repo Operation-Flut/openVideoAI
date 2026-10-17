@@ -8,6 +8,7 @@
             "url": "https://github.com/xinntao/Real-ESRGAN",
             "downloadUrl": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
             "descriptionShort": "Fast, general-purpose image upscaling and texture enhancement.",
+            "bestFor": "Family photos, phone shots, product and scanned images that need 2x-4x more pixels. A safe default when you want good detail quickly, and the best upscaler to pick on a machine without a GPU.",
             "features": [
                 {
                     "name": "Upscale",
@@ -46,6 +47,7 @@
             "url": "https://github.com/sczhou/CodeFormer",
             "downloadUrl": "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth",
             "descriptionShort": "Advanced face restoration for restoring heavily degraded or blurred facial details.",
+            "bestFor": "Old or low-resolution portraits, AI-generated faces and any photo where a face is badly blurred, pixelated or over-compressed. Usually run together with the Upscale filter so the whole frame gains detail, not just the face.",
             "features": [
                 {
                     "name": "Face Recovery",
@@ -70,6 +72,7 @@
             "url": "https://github.com/megvii-research/NAFNet",
             "downloadUrl": "https://huggingface.co/nyanko7/nafnet-models/resolve/main/NAFNet-SIDD-width64.pth",
             "descriptionShort": "Denoises images while preserving fine details.",
+            "bestFor": "Indoor and high-ISO photos where sensor noise is strong and even. Preserves fine texture that a heavier denoiser would smear away; for motion blur use NAFNet-GoPro.",
             "features": [
                 {
                     "name": "Denoise",
@@ -98,6 +101,7 @@
             "url": "https://github.com/megvii-research/NAFNet",
             "downloadUrl": "https://huggingface.co/nyanko7/nafnet-models/resolve/main/NAFNet-REDS-width64.pth",
             "descriptionShort": "General video restoration for blur and complex artifacts.",
+            "bestFor": "Frames from compressed or soft video where blur and mixed artifacts appear together. A general-purpose video restoration checkpoint that also works on single stills.",
             "features": [
                 {
                     "name": "Sharpen / Deblur",
@@ -130,6 +134,7 @@
             "url": "https://github.com/megvii-research/NAFNet",
             "downloadUrl": "https://huggingface.co/nyanko7/nafnet-models/resolve/main/NAFNet-GoPro-width64.pth",
             "descriptionShort": "Deblurs images affected by camera shake and fast motion.",
+            "bestFor": "Photos and video frames blurred by camera shake or fast movement. Trained on motion blur, so it does little for out-of-focus shots - use Restormer there.",
             "features": [
                 {
                     "name": "Sharpen / Deblur",
@@ -165,6 +170,7 @@
             "url": "https://github.com/cszn/SCUNet",
             "downloadUrl": "https://github.com/cszn/KAIR/releases/download/v1.0/scunet_color_real_psnr.pth",
             "descriptionShort": "Removes camera grain and JPEG artifacts while preserving edges.",
+            "bestFor": "Noisy photos with high-ISO grain and images carrying heavy JPEG compression artifacts. A good all-rounder on real-world noise that still keeps edges intact.",
             "features": [
                 {
                     "name": "Denoise",
@@ -189,6 +195,7 @@
             "url": "https://github.com/vladmandic/rife",
             "downloadUrl": null,
             "descriptionShort": "Fast video frame interpolation and smooth slow-motion generation.",
+            "bestFor": "Turning 24 or 30 fps footage into 60 fps, or slowing a clip down smoothly. Fast enough for long clips; FILM copes better when there is a lot of movement between frames.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -218,6 +225,7 @@
             "url": "https://huggingface.co/thornmaze/RIFE",
             "downloadUrl": "https://huggingface.co/thornmaze/RIFE/resolve/main/RIFEv4.26_0921.zip",
             "descriptionShort": "RIFE v4.26 PyTorch model archive for video frame interpolation.",
+            "bestFor": "Smooth slow motion and frame-rate conversion with the v4.26 weights. An alternative checkpoint for the same job as RIFE, for setups that match Practical-RIFE v4.26 exactly.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -244,6 +252,7 @@
             "url": "https://huggingface.co/mlx-community/RIFE-4.25",
             "downloadUrl": "https://huggingface.co/mlx-community/RIFE-4.25/resolve/main/model.safetensors",
             "descriptionShort": "Apple Silicon MLX weights for RIFE 4.25 frame interpolation.",
+            "bestFor": "Frame interpolation on Apple Silicon with the MLX runtime, for slow motion and higher frame rates. Only useful in an MLX-based pipeline - the app's PyTorch loaders cannot read these weights.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -269,6 +278,7 @@
             "url": "https://huggingface.co/Anson-Saju-George/wms-rifev3",
             "downloadUrl": "https://huggingface.co/Anson-Saju-George/wms-rifev3/resolve/main/train_log_wms_custom_loss/flownet.pkl",
             "descriptionShort": "Domain-specific RIFE v3 checkpoint for weather and satellite video.",
+            "bestFor": "Interpolating weather and satellite image sequences, where motion is smooth but the frames are far apart in time. A domain-specific checkpoint - use RIFE or FILM for ordinary footage.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -294,6 +304,7 @@
             "url": "https://huggingface.co/TensorForger/RIFE-safetensors",
             "downloadUrl": "https://huggingface.co/TensorForger/RIFE-safetensors/resolve/main/flownet.safetensors",
             "descriptionShort": "RIFE v4 weights in PyTorch-compatible safetensors format.",
+            "bestFor": "Slow motion and frame-rate conversion in a PyTorch setup that prefers safetensors weights. Same job as the other RIFE entries.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -319,6 +330,7 @@
             "url": "https://huggingface.co/edgetools/rife",
             "downloadUrl": "https://huggingface.co/edgetools/rife/resolve/main/rife49.onnx",
             "descriptionShort": "RIFE v4.9 ONNX model for video frame interpolation.",
+            "bestFor": "Frame interpolation through an ONNX Runtime deployment rather than PyTorch, for moving the effect into another toolchain. The app's own pipelines expect PyTorch weights.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -344,6 +356,7 @@
             "url": "https://github.com/google-research/frame-interpolation",
             "downloadUrl": null,
             "descriptionShort": "High-quality frame interpolation optimized for handling large motion and gaps.",
+            "bestFor": "Interpolating across a lot of movement - sports, fast pans - or bridging frames so far apart that faster models guess wrong. Slower than RIFE but far steadier on large motion.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -371,6 +384,7 @@
             "downloadUrl": null,
             "isAi": false,
             "descriptionShort": "Dense polynomial optical flow for mathematical frame interpolation.",
+            "bestFor": "Dense motion estimation and interpolation on the CPU with no downloads or GPU. A good first choice for gentle, predictable movement; the deep-flow models handle larger displacements better.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -396,6 +410,7 @@
             "downloadUrl": null,
             "isAi": false,
             "descriptionShort": "Ultra-fast variational mathematical optical flow for real-time motion interpolation.",
+            "bestFor": "Real-time interpolation and motion estimation on modest hardware, including long clips, because it is the fastest classical flow method here. Pick it over Farnebäck when speed matters more than smoothness.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -421,6 +436,7 @@
             "downloadUrl": null,
             "isAi": false,
             "descriptionShort": "High-precision total-variation mathematical optical flow preserving sharp motion boundaries.",
+            "bestFor": "Interpolation where fast movement creates sharp motion boundaries, or where brightness changes between frames (flicker, exposure shifts). Needs the OpenCV contrib extra.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -447,6 +463,7 @@
             "downloadUrl": null,
             "isAi": false,
             "descriptionShort": "Classical pyramidal differential optical flow for motion estimation and interpolation.",
+            "bestFor": "Classical motion estimation for gentle, small movements, and as a reference point when comparing flow methods. The pyramid makes it more tolerant than plain Lucas-Kanade, but large motion gets smoothed away.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -472,6 +489,7 @@
             "downloadUrl": "https://huggingface.co/edgetools/RAFT/resolve/main/raft_things.pth",
             "isAi": true,
             "descriptionShort": "Deep learning recurrent optical flow for high-accuracy motion estimation.",
+            "bestFor": "Accurate motion estimation in hard cases - occlusions, complex movement - when a GPU is available. The reference deep-flow model: heavier than SPyNet, clearly more accurate.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -498,6 +516,7 @@
             "downloadUrl": "https://huggingface.co/edgetools/FlowFormer/resolve/main/flowformer_things.pth",
             "isAi": true,
             "descriptionShort": "Transformer-based optical flow with global attention for complex motion.",
+            "bestFor": "The most accurate motion estimation on difficult sequences, when quality matters more than speed and a GPU is available.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -524,6 +543,7 @@
             "downloadUrl": "https://huggingface.co/edgetools/GMA/resolve/main/gma_things.pth",
             "isAi": true,
             "descriptionShort": "Global motion aggregation for robust optical flow in complex scenes.",
+            "bestFor": "Scenes with occlusions and separately moving subjects, where foreground and background motion differ. Combines local and global motion reasoning for a steadier flow field.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -550,6 +570,7 @@
             "downloadUrl": "https://huggingface.co/edgetools/SPyNet/resolve/main/spynet_sintel_final.pth",
             "isAi": true,
             "descriptionShort": "Lightweight spatial pyramid network for efficient optical flow.",
+            "bestFor": "Motion estimation on CPU or a weak GPU - the lightest deep-flow option, and a speed and accuracy middle ground between DIS and RAFT.",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -575,6 +596,7 @@
             "url": "https://github.com/ckkelvinchan/RealBasicVSR",
             "downloadUrl": "https://huggingface.co/akhaliq/RealBasicVSR_x4/resolve/main/RealBasicVSR_x4.pth",
             "descriptionShort": "Multi-frame video restoration for cleaning noisy, low-light, or degraded LOG footage.",
+            "bestFor": "Noisy, low-light or heavily compressed video - including poorly shot LOG footage - where artifacts and flicker have to be fixed across frames rather than frame by frame. Reference entry: no video-restoration runtime is integrated in this build.",
             "features": [
                 {
                     "name": "Multipurpose Restoration",
@@ -605,6 +627,7 @@
             "url": "https://github.com/bilibili/ailab/tree/main/Real-CUGAN",
             "downloadUrl": "https://github.com/ZHCSOFT/Real-CUGAN/releases/download/Real-CUGAN/weights_v3.zip",
             "descriptionShort": "Multipurpose 2D/anime image upscaling, denoising, and artifact removal.",
+            "bestFor": "Anime, manga and 2D artwork: upscaling, denoising and JPEG-artifact removal in one pass, with flat colours and hard outlines kept clean. Also good for screenshots and UI captures.",
             "features": [
                 {
                     "name": "Multipurpose Pipeline",
@@ -645,6 +668,7 @@
             "downloadUrl": "https://drive.usercontent.google.com/download?id=1tVO0GFa5GeuuXmvPHq9iYpfwSObrUMiv&export=download&confirm=t",
             "filename": "336999_style_lut.pth",
             "descriptionShort": "Extracts colors from a reference image and creates a fast 3D LUT.",
+            "bestFor": "Copying a colour grade: point it at a reference frame or photo whose look you like and apply that grade to your own footage as a 3D LUT, fast enough for clips.",
             "features": [
                 {
                     "name": "Match Color",
@@ -667,6 +691,7 @@
             "downloadUrl": "https://www.dropbox.com/s/lkwo9xg168e650i/checkpoints.zip?dl=1",
             "filename": "latest_net_G_A.pth",
             "descriptionShort": "Advanced, semantically-aware color transfer for complex lighting.",
+            "bestFor": "Re-grading toward a reference look while keeping the content sensible - skies stay skies and skin stays skin. Better than a plain histogram match when the two images differ in what they show.",
             "features": [
                 {
                     "name": "Match Color",
@@ -694,6 +719,7 @@
                 }
             ],
             "descriptionShort": "Neural color matching that reproduces the reference's look.",
+            "bestFor": "Matching a reference grade on photos and frames on the CPU, without needing a GPU. Produces a natural, softly matched result rather than an exact numeric match.",
             "features": [
                 {
                     "name": "Match Color",
@@ -715,6 +741,7 @@
             "url": "https://github.com/jrosebr1/color_transfer",
             "downloadUrl": null,
             "descriptionShort": "Instant, zero-VRAM mathematical color matching.",
+            "bestFor": "A quick, exact statistical colour match when speed or zero VRAM matters, e.g. aligning a shot to a reference before export. Purely mathematical, so it cannot fix differences in content.",
             "features": [
                 {
                     "name": "Match Color",
@@ -738,6 +765,7 @@
             "url": "https://huggingface.co/SnJake/Sapsan-VFI",
             "downloadUrl": "https://huggingface.co/SnJake/Sapsan-VFI/resolve/main/Sapsan-VFI.pt",
             "descriptionShort": "Deep learning model for up to 2x video frame interpolation and slow-motion generation.",
+            "bestFor": "Frame interpolation for smooth slow motion and higher frame rates. Reference entry: no runtime is integrated in this build, so use RIFE or one of the optical-flow methods.",
             "isAi": true,
             "requiresCuda": false,
             "requiresMetal": false,
@@ -763,6 +791,7 @@
             "url": "https://github.com/cszn/BSRGAN",
             "downloadUrl": "https://github.com/cszn/KAIR/releases/download/v1.0/BSRGAN.pth",
             "descriptionShort": "Blind restoration + 4x upscaling that handles blur, noise, and JPEG artifacts.",
+            "bestFor": "Blindly restoring images whose degradation is unknown - a mix of blur, noise and JPEG compression - while enlarging 4x in the same pass. Handy for old compressed photos; reference entry in this build.",
             "features": [
                 {
                     "name": "Upscale",
@@ -787,6 +816,7 @@
             "url": "https://github.com/TencentARC/GFPGAN",
             "downloadUrl": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/GFPGANv1.4.pth",
             "descriptionShort": "Face-focused restoration for blurry, noisy, or low-resolution faces.",
+            "bestFor": "Portrait photos and video frames with small or moderately degraded faces. Fast and reliable for general face cleanup; CodeFormer is usually better on badly damaged faces.",
             "features": [
                 {
                     "name": "Face Recovery",
@@ -808,6 +838,7 @@
             "url": "https://github.com/wzhouxiff/RestoreFormer",
             "downloadUrl": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/RestoreFormer.pth",
             "descriptionShort": "Face restoration with a transformer decoder for fine detail preservation.",
+            "bestFor": "Faces that need their fine structure - lashes, skin texture, hair - kept intact while being sharpened. Sits between GFPGAN's smoothness and CodeFormer's codebook look.",
             "features": [
                 {
                     "name": "Face Recovery",
@@ -829,6 +860,7 @@
             "url": "https://github.com/wzhouxiff/RestoreFormerPlusPlus",
             "downloadUrl": "https://github.com/wzhouxiff/RestoreFormerPlusPlus/releases/download/v1.0.0/RestoreFormer++.ckpt",
             "descriptionShort": "VQGAN + full-attention face restoration with finer skin texture.",
+            "bestFor": "Faces from very low-resolution or heavily compressed sources where identity and natural skin texture must survive. The heaviest and most detailed of the RestoreFormer family.",
             "features": [
                 {
                     "name": "Face Recovery",
@@ -850,6 +882,7 @@
             "url": "https://github.com/czczup/DifFace",
             "downloadUrl": "https://huggingface.co/OAOA/DifFace/resolve/main/diffusion_pytorch_model.bin",
             "descriptionShort": "Diffusion face restoration focused on identity preservation.",
+            "bestFor": "Faces where the likeness has to survive the restoration - portraits and group shots you would not want re-invented by the model. Diffusion-based, so it is slower than GFPGAN and wants a GPU.",
             "features": [
                 {
                     "name": "Face Recovery",
@@ -871,6 +904,7 @@
             "url": "https://github.com/swz30/Restormer",
             "downloadUrl": "https://github.com/swz30/Restormer/releases/download/v1.0/single_image_defocus_deblurring.pth",
             "descriptionShort": "Transformer defocus-deblurring for out-of-focus images.",
+            "bestFor": "Out-of-focus or soft-lens photos - missed autofocus, phone macro shots. It reduces defocus blur but cannot recover identity from severe blur; for motion blur use NAFNet-GoPro.",
             "features": [
                 {
                     "name": "Sharpen / Deblur",
@@ -896,6 +930,7 @@
             "url": "https://github.com/VITA-Group/DeblurGANv2",
             "downloadUrl": "https://huggingface.co/TJ-27/Deblur-GAN-V2/resolve/main/deblurgan_generator.keras?download=true",
             "descriptionShort": "GAN motion deblurring (FPN backbone); weights require manual download.",
+            "bestFor": "Motion-blurred stills, as an alternative checkpoint to NAFNet-GoPro. Trained on motion blur, so defocus or compression blur shows little improvement.",
             "features": [
                 {
                     "name": "Sharpen / Deblur",
@@ -917,6 +952,7 @@
             "url": "https://github.com/swz30/MPRNet",
             "downloadUrl": "https://huggingface.co/brill1234/mprnet-esrgan-4x/resolve/main/weights/best_mprnet_finetuned.pth",
             "descriptionShort": "Multi-stage CNN deblurring (GoPro); weights require manual download.",
+            "bestFor": "Motion-blurred photos, with denoising checkpoints available as well. A slower alternative to NAFNet-GoPro that is sometimes cleaner on heavy blur.",
             "features": [
                 {
                     "name": "Sharpen / Deblur",
@@ -942,6 +978,7 @@
             "url": "https://github.com/kkkls/fftformer",
             "downloadUrl": "https://github.com/kkkls/FFTformer/releases/download/pretrain_model/fftformer_GoPro.pth",
             "descriptionShort": "Frequency-domain transformer for motion deblurring.",
+            "bestFor": "Motion-blurred photos and frames, using a frequency-domain model. Another NAFNet-GoPro alternative, with the same limits on defocus and compression blur.",
             "features": [
                 {
                     "name": "Sharpen / Deblur",
@@ -963,6 +1000,7 @@
             "url": "https://github.com/XPixelGroup/DiffBIR",
             "downloadUrl": "https://huggingface.co/lxq007/DiffBIR/resolve/main/general_full_v1.ckpt",
             "descriptionShort": "Diffusion prior for high-quality blind restoration (GPU with 12GB+ VRAM).",
+            "bestFor": "Badly degraded photos and frames where plausibly re-invented detail is acceptable - old scans, heavy compression. Needs a GPU with roughly 12GB VRAM, and it invents detail rather than recovering it.",
             "features": [
                 {
                     "name": "Multipurpose Restoration",
@@ -987,6 +1025,7 @@
             "url": "https://github.com/Fanghua-Yu/SUPIR",
             "downloadUrl": "https://huggingface.co/camenduru/SUPIR/resolve/main/SUPIR-v0Q.ckpt",
             "descriptionShort": "SDXL-based generative restoration for photo-realistic results (needs ~24GB VRAM).",
+            "bestFor": "The strongest option here for photo-realistic restoration of very degraded stills, e.g. old family photos. Needs roughly 24GB of VRAM, so treat it as a high-end workstation choice.",
             "features": [
                 {
                     "name": "Multipurpose Restoration",
@@ -1011,6 +1050,7 @@
             "url": "https://github.com/cswry/SeeSR",
             "downloadUrl": "https://huggingface.co/cswry/SeeSR/resolve/main/seesr/unet/diffusion_pytorch_model.safetensors",
             "descriptionShort": "Semantics-aware diffusion super-resolution with caption guidance.",
+            "bestFor": "Upscaling where the result must stay faithful to the original scene - text, signs, small structures - by using caption guidance. A good pick when you would rather preserve structure than have detail invented.",
             "features": [
                 {
                     "name": "Upscale",
@@ -1031,6 +1071,7 @@
             "url": "https://github.com/IceClear/StableSR",
             "downloadUrl": "https://huggingface.co/Iceclear/StableSR/resolve/main/stablesr_000117.ckpt",
             "descriptionShort": "Diffusion super-resolution with time-aware encoding for realistic detail.",
+            "bestFor": "Photo-realistic upscaling of real-world photos while keeping the structure stable. A slower, diffusion-based alternative to Real-ESRGAN on degraded inputs.",
             "features": [
                 {
                     "name": "Upscale",
@@ -1051,6 +1092,7 @@
             "url": "https://github.com/csslc/CCSR",
             "downloadUrl": "https://huggingface.co/benjamin-paine/ccsr/resolve/main/real-world_ccsr.ckpt",
             "descriptionShort": "Controllable diffusion super-resolution with structure/texture balance.",
+            "bestFor": "Upscaling where you want to steer how much new texture is added versus how much structure is preserved - useful for images mixing smooth areas with fine detail.",
             "features": [
                 {
                     "name": "Upscale",
@@ -1071,6 +1113,7 @@
             "url": "https://github.com/cswry/OSEDiff",
             "downloadUrl": null,
             "descriptionShort": "One-step diffusion super-resolution (fast, NeurIPS 2024); weights via manual download.",
+            "bestFor": "Fast, one-step diffusion-quality upscaling: the diffusion option to reach for when the multi-step models are too slow to iterate with.",
             "features": [
                 {
                     "name": "Upscale",
@@ -1091,6 +1134,7 @@
             "url": "https://github.com/msu-video-group/tsrn-rtvd",
             "downloadUrl": "https://huggingface.co/egorchistov/deblurring-tsrn-rtvd/resolve/main/checkpoints/tsrnn_bt1_exact_ft.pth",
             "descriptionShort": "Real-time video deblurring (RTVD); streaming API via the tsrn-rtvd package.",
+            "bestFor": "Deblurring moving footage in a streaming pass - shaky handheld video - where frame-by-frame deblurring would flicker. Runs through the official tsrn-rtvd package.",
             "features": [
                 {
                     "name": "Sharpen / Deblur",
@@ -1112,6 +1156,7 @@
             "url": "https://github.com/opencv/opencv_zoo",
             "downloadUrl": "https://huggingface.co/opencv/deblurring_nafnet/resolve/main/deblurring_nafnet_2025may.onnx",
             "descriptionShort": "NAFNet GoPro deblurring as ONNX for OpenCV / cv2.dnn.",
+            "bestFor": "Running NAFNet deblurring outside openVideoAI, in OpenCV-based tooling (cv2.dnn, C++ or Python). For the same effect inside the app, use the NAFNet-GoPro entry.",
             "features": [
                 {
                     "name": "Sharpen / Deblur",
@@ -1132,6 +1177,7 @@
             "url": "https://github.com/Li-Chongyi/Zero-DCE",
             "downloadUrl": "https://github.com/Li-Chongyi/Zero-DCE/raw/master/Zero-DCE_code/snapshots/Epoch99.pth",
             "descriptionShort": "Tiny AI low-light enhancer that lifts shadows while keeping colors natural.",
+            "bestFor": "Night shots, underexposed interiors and backlit photos where shadows need lifting without washing the colours out. Tiny and fast; use the classical low-light enhancer when nothing should be downloaded.",
             "features": [
                 {
                     "name": "Low-Light Enhancement",
@@ -1153,6 +1199,7 @@
             "url": "",
             "downloadUrl": null,
             "descriptionShort": "Instant classical low-light boost with no download.",
+            "bestFor": "A quick brightness and contrast lift on dark photos and frames, with no download and no GPU. Good for a fast pass or a weak machine; Zero-DCE looks more natural on very dark material.",
             "features": [
                 {
                     "name": "Low-Light Enhancement",
@@ -1177,6 +1224,7 @@
             "url": "",
             "downloadUrl": null,
             "descriptionShort": "Instant SDR to HDR conversion with Reinhard tone mapping.",
+            "bestFor": "Converting SDR footage to HDR10 or HLG for playback on an HDR display, or checking how a grade will hold up in HDR. Purely mathematical, so no model is needed.",
             "features": [
                 {
                     "name": "SDR to HDR",
@@ -1197,6 +1245,7 @@
             "name": "RealESRGAN_x4plus_anime_6B",
             "description": "Real-ESRGAN x4plus variant with a 6-block RRDBNet tuned for anime and line art, preserving flat colors and thin outlines.",
             "descriptionShort": "Anime/line-art upscaling with a lighter 6-block network.",
+            "bestFor": "Anime, manga and line art at 4x, with flat colours and thin outlines preserved. Lighter and faster than Real-CUGAN; use the general Real-ESRGAN for photos.",
             "size": "~18MB",
             "weight": "Lightweight",
             "url": "https://github.com/xinntao/Real-ESRGAN",
@@ -1235,6 +1284,7 @@
             "name": "RealESRGAN_x2plus",
             "description": "Real-ESRGAN x2plus for 2x upscaling of photos and video with natural texture reconstruction.",
             "descriptionShort": "2x upscaling for photos and video.",
+            "bestFor": "Gentle 2x enlargements of photos and video frames, where 4x would overshoot. Keeps natural texture without the anime model's flat look.",
             "size": "~64MB",
             "weight": "Lightweight",
             "url": "https://github.com/xinntao/Real-ESRGAN",
@@ -1273,6 +1323,7 @@
             "name": "ffmpeg",
             "description": "Bundled FFmpeg encoder used for re-encoding video without any AI model weights.",
             "descriptionShort": "FFmpeg-based re-encoding (H.264/H.265/AV1).",
+            "bestFor": "Delivering the finished result: re-encoding into H.264, H.265, VP9 or AV1, changing the container, and setting the quality target for the final file. Normally the last step for video output.",
             "size": "Built-in (< 1MB)",
             "weight": "Ultra-Lightweight (0 VRAM)",
             "url": "https://ffmpeg.org/",
@@ -1298,6 +1349,7 @@
             "name": "handbrake",
             "description": "HandBrake CLI encoder for standards-compliant re-encoding and device presets. Declared for reference only: no HandBrake runtime is implemented in this build, so it is not offered as a pipeline step.",
             "descriptionShort": "HandBrake CLI re-encoding (no runtime in this build).",
+            "bestFor": "Re-encoding with HandBrake's device presets and stricter standards compliance. Reference entry: no HandBrake runtime is integrated in this build, so use the FFmpeg encoder.",
             "size": "Built-in (< 1MB)",
             "weight": "Ultra-Lightweight (0 VRAM)",
             "url": "https://handbrake.fr/",

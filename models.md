@@ -160,6 +160,14 @@ for a still image. No video-only entry is runnable in this build today — the o
 catalogued video upscaler, RealBasicVSR, has no bundled runtime — so a video
 currently lands on the best general, still-capable model, and the sidebar says so.
 
+Both fields reach the UI through the API: `media` is accompanied by the
+human-readable `mediaLabel` the backend builds (`Images and video`, `Video only`,
+`Images only`) so the catalog's vocabulary is phrased in exactly one place, and
+`bestFor` is the per-model note on when to reach for that model and which sibling
+to prefer instead. The model details popup shows them as **Best used for**, above
+the specifications. Every one of the 52 entries carries a `bestFor` note;
+`tests/test_model_details.py` keeps it that way.
+
 ## LOG footage module
 
 The catalog contains a **LOG Footage Enhancer & Neural Color Grade** module

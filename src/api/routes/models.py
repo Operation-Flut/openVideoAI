@@ -23,7 +23,7 @@ from ...api.dependencies import (
     PaginationParams,
 )
 from ...services.model_service import ModelService
-from ...models.registry import ModelRegistry, get_registry
+from ...models.registry import ModelRegistry, get_registry, media_label
 from ...utils.system_resources import check_model_compatibility
 
 router = APIRouter(prefix="/models", tags=["models"])
@@ -85,7 +85,10 @@ async def list_models(
             compatible=compat["compatible"],
             compatibility_reason=compat["reason"],
             local_path=m.get("local_path"),
+            media=m.get("media", "both"),
+            media_label=m.get("media_label", "Images and video"),
             full_description=m.get("description"),
+            best_for=m.get("best_for"),
             filename=m.get("filename"),
             module=m.get("module"),
             source_url=m.get("url"),
@@ -281,7 +284,10 @@ async def get_model(
         compatible=compat["compatible"],
         compatibility_reason=compat["reason"],
         local_path=local_path,
+        media=model.media,
+        media_label=media_label(model.media),
         full_description=model.description,
+        best_for=model.best_for,
         filename=model.filename,
         module=model.module,
         source_url=model.url,

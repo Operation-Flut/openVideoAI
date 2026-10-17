@@ -102,8 +102,17 @@ class ModelResponse(BaseModel):
     compatibility_reason: Optional[str] = None
     local_path: Optional[str] = None
 
+    # What the model applies to ("image" / "video" / "both") plus the label to
+    # show for it. The label is produced here so the UI never phrases the
+    # catalog's media vocabulary itself.
+    media: str = "both"
+    media_label: str = "Images and video"
+
     # Extended detail fields (surfaced by the model details popup).
     full_description: Optional[str] = None
+    # Catalog `bestFor` note: when to reach for this model, and which sibling
+    # model to prefer instead.
+    best_for: Optional[str] = None
     filename: Optional[str] = None
     module: Optional[str] = None
     source_url: Optional[str] = None

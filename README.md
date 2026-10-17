@@ -83,7 +83,9 @@ kind of media; the frame-interpolation and video-encoder entries are video-only.
 The **Smart Select** switch in *Settings → Models* uses those fields, the detected
 hardware and the memory budget in *Settings → System* to choose the best model for
 the file being processed instead of the catalog default — see
-[models.md](models.md#smart-select).
+[models.md](models.md#smart-select). Each entry also carries a `bestFor` note on
+when to reach for it and which sibling to prefer instead; the model details popup
+shows it, together with the media label, under *Best used for*.
 
 See [models.md](models.md) for the complete catalog, comparisons, and usage
 notes. Catalog entries describe intended integrations; they do not imply that

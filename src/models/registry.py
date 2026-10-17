@@ -19,6 +19,19 @@ logger = logging.getLogger(__name__)
 
 MEDIA_TYPES = ("image", "video", "both")
 
+# Human-readable form of a `media` value. Served to the UI so the catalog's
+# vocabulary is phrased in exactly one place.
+MEDIA_LABELS = {
+    "image": "Images only",
+    "video": "Video only",
+    "both": "Images and video",
+}
+
+
+def media_label(media: Any) -> str:
+    """Display label for a catalog ``media`` value."""
+    return MEDIA_LABELS[_normalise_media(media)]
+
 
 def _normalise_media(value: Any) -> str:
     """Validate a catalog ``media`` value, defaulting to ``both``.
@@ -43,6 +56,9 @@ class ModelConfig:
     filename: Optional[str] = None
     additional_downloads: List[Dict[str, str]] = field(default_factory=list)
     features: List[Dict[str, str]] = field(default_factory=list)
+    # Longer, use-case oriented note shown in the model details popup ("Best used
+    # for"). Optional: the popup falls back to the plain description.
+    best_for: Optional[str] = None
     is_ai: bool = True
     requires_cuda: bool = False
     requires_metal: bool = False
@@ -169,6 +185,7 @@ class ModelRegistry:
                     filename=model_data.get("filename"),
                     additional_downloads=model_data.get("additionalDownloads", []),
                     features=model_data.get("features", []),
+                    best_for=model_data.get("bestFor"),
                     is_ai=model_data.get("isAi", True),
                     requires_cuda=model_data.get("requiresCuda", False),
                     requires_metal=model_data.get("requiresMetal", False),

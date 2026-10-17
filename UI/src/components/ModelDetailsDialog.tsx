@@ -1,8 +1,8 @@
-import { Download, Trash2, Boxes } from 'lucide-react'
+import { Download, Trash2, Boxes, Image as ImageIcon, Film } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Dialog, Button, Progress } from './ui'
 import {
-  FEATURE_TAG_STYLES, FALLBACK_TAG_STYLE, STATUS_BADGE, STATUS_LABEL, statusFor,
+  FEATURE_TAG_STYLES, FALLBACK_TAG_STYLE, MEDIA_TAG_STYLES, STATUS_BADGE, STATUS_LABEL, statusFor,
 } from '../utils/modelMeta'
 import type { ModelResponse } from '../types/api'
 
@@ -84,6 +84,21 @@ export function ModelDetailsDialog({
         {model.full_description || model.description}
       </p>
 
+      {/* What it is good for: the media it applies to, then the catalog's note on
+          when to reach for it. Both texts come from the catalog, so the wording
+          lives with the model data. */}
+      <div className="detail-section mt-4">
+        <div className="detail-section-title">Best used for</div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <MediaPill media={model.media} label={model.media_label} />
+        </div>
+        {model.best_for && (
+          <p className="mt-2.5 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
+            {model.best_for}
+          </p>
+        )}
+      </div>
+
       {/* Specifications */}
       <div className="detail-section mt-4">
         <div className="detail-section-title">Specifications</div>
@@ -162,6 +177,26 @@ export function ModelDetailsDialog({
         </div>
       )}
     </Dialog>
+  )
+}
+
+/**
+ * The media a model applies to, as a pill. The label comes from the backend, so
+ * the catalog's vocabulary is phrased in one place - only the icon and the colour
+ * are chosen here.
+ */
+function MediaPill({ media, label }: { media: string; label: string }) {
+  return (
+    <span
+      className={clsx(
+        'inline-flex items-center gap-1.5 rounded-[3px] px-2 py-1 text-[11px] font-semibold uppercase tracking-wide leading-none',
+        MEDIA_TAG_STYLES[media] || FALLBACK_TAG_STYLE
+      )}
+    >
+      {(media === 'image' || media === 'both') && <ImageIcon className="w-3 h-3" />}
+      {(media === 'video' || media === 'both') && <Film className="w-3 h-3" />}
+      {label}
+    </span>
   )
 }
 

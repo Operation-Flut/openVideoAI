@@ -15,6 +15,14 @@ export const FEATURE_TAG_STYLES: Record<string, string> = {
 
 export const FALLBACK_TAG_STYLE = 'bg-white/5 text-[var(--color-text-secondary)]'
 
+// Pill colours for the "Best used for" line in the model details popup, keyed by
+// the catalog's `media` value (the label shown alongside comes from the backend).
+export const MEDIA_TAG_STYLES: Record<string, string> = {
+  image: 'bg-sky-500/10 text-sky-300',
+  video: 'bg-violet-500/10 text-violet-300',
+  both: 'bg-teal-500/10 text-teal-300',
+}
+
 export type ModelStatusKey = 'builtin' | 'downloaded' | 'available' | 'incompatible'
 
 export const STATUS_BADGE: Record<ModelStatusKey, string> = {

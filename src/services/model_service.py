@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from concurrent.futures import ThreadPoolExecutor
 
-from ..models.registry import ModelRegistry, get_registry, ModelConfig, ModelStatus
+from ..models.registry import ModelRegistry, get_registry, ModelConfig, ModelStatus, media_label
 from ..models.downloader import ModelDownloader, DownloadProgress
 from ..core.paths import models_dir
 from ..events.bus import EventBus, EventType, ModelDownloadProgressEvent, get_event_bus
@@ -64,6 +64,7 @@ class ModelService:
                 "name": config.name,
                 "description": config.description,
                 "description_short": config.description_short,
+                "best_for": config.best_for,
                 "size": config.size,
                 "weight": config.weight,
                 "url": config.url,
@@ -71,6 +72,8 @@ class ModelService:
                 "filename": config.filename,
                 "features": [f["name"] for f in config.features],
                 "is_ai": config.is_ai,
+                "media": config.media,
+                "media_label": media_label(config.media),
                 "requires_cuda": config.requires_cuda,
                 "requires_metal": config.requires_metal,
                 "can_run_on_cpu": config.can_run_on_cpu,
