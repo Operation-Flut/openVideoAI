@@ -10,6 +10,10 @@ import logging
 
 from ...processing.pipeline.base import EnhancementPipeline, PipelineConfig, ProcessingContext, ProcessingResult, InferenceError, UnsupportedFormatError, ProcessingAborted
 from ...models.registry import get_registry, default_model
+# When the Reencoding step is the *final* stage, the Export dialog's
+# codec/quality/audio/LUT/container settings take precedence over the step's
+# own parameters, so the user only has one place to configure the output.
+from ..pipeline.video_writer import EncodeSettings, build_video_args, build_audio_args, ffmpeg_path, ffprobe_path
 
 logger = logging.getLogger(__name__)
 
@@ -170,10 +174,32 @@ class ReencodingPipeline(EnhancementPipeline):
         except Exception as e:
             raise InferenceError(f"FFmpeg check failed: {e}")
 
-    def _build_ffmpeg_cmd(self, context: ProcessingContext) -> List[str]:
-        """Build FFmpeg command line."""
+    def _build_ffmpeg_cmd(self, context: ProcessingContext, export: Optional[EncodeSettings] = None) -> List[str]:
+        """Build FFmpeg command line.
+
+        When ``export`` is provided (final stage with an Export dialog), its
+        codec/quality/audio/LUT/container settings override the step's own
+        parameters so the dialog is the single source of truth.
+        """
         params = self._effective_params()
 
+        if export is not None:
+            codec = export.codec
+            # Video
+            cmd = [
+                self._ffmpeg_path, "-y", "-hide_banner", "-loglevel", "error", "-nostdin",
+                "-i", str(context.input_path),
+            ]
+            # Apply LUT if requested
+            if export.lut_path:
+                cmd += ["-vf", f"lut3d=file={export.lut_path}"]
+            cmd += build_video_args(export, width=0, height=0)
+            cmd += build_audio_args(export)
+            # Output - the container is set by the output path suffix
+            cmd.append(str(context.output_path))
+            return cmd
+
+        # Standard step path (intermediate or no export dialog)
         cmd = [self._ffmpeg_path, "-y"]  # -y = overwrite
 
         # Input
@@ -253,7 +279,12 @@ class ReencodingPipeline(EnhancementPipeline):
         return 0.0
 
     def process(self, context: ProcessingContext) -> ProcessingResult:
-        """Transcode video using FFmpeg."""
+        """Transcode video using FFmpeg.
+
+        If this is the final stage in a chain and the Export dialog provided
+        codec/quality/audio/LUT/container settings, those win so the user's
+        single export window is the source of truth.
+        """
         if not self._loaded:
             raise InferenceError("FFmpeg not available. Call load_model() first.")
 
@@ -261,15 +292,33 @@ class ReencodingPipeline(EnhancementPipeline):
         if path.suffix.lower() not in self.config.supported_formats:
             raise UnsupportedFormatError(f"Unsupported format: {path.suffix}")
 
+        # If the final export wants to take over the encoding, let it.
+        is_final = context.parameters.get("export_final", False)
+        export = EncodeSettings.from_parameters(context.parameters or {}) if is_final else None
+
         # Get duration for progress tracking
         duration = self._get_duration(path)
 
         # The values actually handed to FFmpeg (defaults + ctor args + step
         # parameters), reported back in the result metadata below.
         effective = self._effective_params()
+        if export is not None:
+            # Export dialog overrides: codec, quality, profile, bitrate mode,
+            # audio, container, LUT. Scale/FPS from the step still apply.
+            effective["video_codec"] = export.codec
+            effective["crf"] = export.crf
+            if export.profile:
+                effective["profile"] = export.profile
+            effective["audio_codec"] = export.audio_mode
+            effective["audio_bitrate"] = export.audio_bitrate or ""
+            effective["lut_path"] = export.lut_path
+            # Bitrate mode
+            if export.bitrate_mode == "constant" and export.bitrate_mbps > 0:
+                effective["bitrate"] = f"{export.bitrate_mbps:g}M"
+            # Container is handled by the output path suffix in the service
 
         try:
-            cmd = self._build_ffmpeg_cmd(context)
+            cmd = self._build_ffmpeg_cmd(context, export)
             logger.info(f"FFmpeg command: {' '.join(cmd)}")
 
             context.report_progress(5, "Starting transcode")

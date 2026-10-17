@@ -38,6 +38,11 @@ from ...models.registry import ModelRegistry, default_model
 
 router = APIRouter(prefix="/processing", tags=["processing"])
 
+from ...services.export_service import export_form_schema
+from ...services.browse_service import pick_path, native_dialogs_available
+from ...services.settings_service import get_settings_service
+from ...api.schemas import ExportOptionsResponse, BrowseResponse
+
 
 @router.get("/features", response_model=ProcessingFeaturesResponse)
 async def get_processing_features(
@@ -78,6 +83,48 @@ async def get_processing_features(
             )
 
     return ProcessingFeaturesResponse(features=features)
+
+
+@router.get("/export/options", response_model=ExportOptionsResponse)
+async def get_export_options(
+    input_name: Optional[str] = None,
+    scale: Optional[int] = None,
+    settings_service = Depends(get_settings_service),
+):
+    """Get the Export dialog schema (fields, defaults, availability).
+
+    The UI calls this when the Export dialog opens. The response contains
+    every control with its type, label, options, default and any reason it is
+    disabled on this machine. The backend owns the rules so the dialog never
+    shows a codec the encoder cannot produce or a container it cannot hold.
+    """
+    settings = settings_service.get_settings()
+    schema = export_form_schema(settings, input_name=input_name, scale=scale)
+    return ExportOptionsResponse(**schema)
+
+
+@router.post("/system/browse", response_model=BrowseResponse)
+async def system_browse(
+    kind: str = "file",
+    suffixes: Optional[List[str]] = None,
+    start_dir: Optional[str] = None,
+):
+    """Ask the machine for a native file/folder picker.
+
+    The backend runs on the same machine as the user, so it can open the OS
+    picker (WinForms on Windows, osascript on macOS, zenity/kdialog on Linux).
+    When no picker is available (headless server, browser mode), the response
+    has ``ok: False`` and the UI falls back to a text input.
+    """
+    if kind not in ("file", "folder"):
+        raise HTTPException(status_code=400, detail="kind must be 'file' or 'folder'")
+    if not native_dialogs_available():
+        return BrowseResponse(
+            ok=False,
+            reason="This machine has no native file picker; type the path instead.",
+        )
+    result = pick_path(kind, suffixes=suffixes or [], start_dir=start_dir)
+    return BrowseResponse(**result)
 
 
 @router.post("", response_model=ProcessResponse)
@@ -460,7 +507,11 @@ async def get_task_result(
     task_id: str,
     processing_service: ProcessingService = Depends(get_processing_service),
 ):
-    """Get processing result file."""
+    """Get processing result file.
+
+    If the export was an image sequence, the output is a folder and this
+    endpoint returns a ZIP stream of the frames.
+    """
     task = processing_service.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -471,7 +522,28 @@ async def get_task_result(
     if not task.output_path or not Path(task.output_path).exists():
         raise HTTPException(status_code=404, detail="Result file not found")
 
-    return FileResponse(task.output_path, filename=Path(task.output_path).name)
+    output_path = Path(task.output_path)
+    if output_path.is_dir():
+        # Image sequence: zip and stream
+        import zipfile
+        from io import BytesIO
+        from fastapi.responses import StreamingResponse
+
+        def iter_zip():
+            buffer = BytesIO()
+            with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+                for file in sorted(output_path.iterdir()):
+                    if file.is_file():
+                        zipf.write(file, arcname=file.name)
+            yield buffer.getvalue()
+
+        return StreamingResponse(
+            iter_zip(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{output_path.name}.zip"'},
+        )
+
+    return FileResponse(output_path, filename=output_path.name)
 
 
 @router.post("/task/{task_id}/cancel")

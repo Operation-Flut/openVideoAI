@@ -1,6 +1,7 @@
 """
 API Schemas - Pydantic models for request/response validation.
 """
+from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -269,6 +270,9 @@ class ProcessRequest(BaseModel):
     # Global settings
     output_format: OutputFormat = OutputFormat.SOURCE
     quality: str = "medium"  # high, medium, low
+    # What the Export dialog asked for (codec, container, audio, LUT, name,
+    # destination). Applied to the final stage of the chain.
+    export_options: Optional[ExportOptions] = None
     # Preview runs process a short sample of the input (see
     # ``ProcessingService._prepare_preview_input``) so a pipeline can be judged in
     # seconds instead of after a full export.
@@ -332,8 +336,64 @@ class ExportSettings(BaseModel):
     export_dir: str = "./exports"
     export_naming: str = "{name}_enhanced_{scale}x"
     overwrite_existing: bool = False
+    # The Export dialog opens with these and writes back what was used last, so
+    # the choices persist. Which combinations are legal is decided by
+    # ``services.export_service``, not by these fields.
     video_codec: str = "libx264"
-    video_crf: int = Field(default=18, ge=0, le=51)
+    video_quality: str = Field(default="high", pattern="^(low|medium|high)$")
+    video_profile: str = ""
+    container: str = "mp4"
+    bitrate_mode: str = Field(default="dynamic", pattern="^(dynamic|constant)$")
+    video_bitrate_mbps: float = Field(default=12.0, ge=1, le=200)
+    audio_mode: str = "copy"
+    output_type: str = Field(default="video", pattern="^(video|image_sequence)$")
+    image_format: str = "png"
+    lut_path: str = ""
+    save_to: str = Field(default="exports", pattern="^(original|exports|custom)$")
+
+
+class ExportOptions(BaseModel):
+    """The Export dialog's state.
+
+    Everything is optional: the cross-field rules (which codec fits which
+    container, which audio the muxer accepts, whether the LUT exists) are
+    applied by ``services.export_service.normalise_options`` so a stale dialog
+    or a hand-written request cannot produce a broken file.
+    """
+    output_type: Optional[str] = None
+    filename: Optional[str] = None
+    save_to: Optional[str] = None
+    export_dir: Optional[str] = None
+    container: Optional[str] = None
+    codec: Optional[str] = None
+    profile: Optional[str] = None
+    bitrate_mode: Optional[str] = None
+    bitrate_mbps: Optional[float] = None
+    quality: Optional[str] = None
+    audio_mode: Optional[str] = None
+    image_format: Optional[str] = None
+    jpg_quality: Optional[int] = None
+    lut_path: Optional[str] = None
+
+
+class ExportOptionsResponse(BaseModel):
+    """The render-ready description of the Export dialog."""
+    fields: List[Dict[str, Any]] = []
+    defaults: Dict[str, Any] = {}
+    ffmpeg: Dict[str, Any] = {}
+    nvidia: bool = False
+    native_dialogs: bool = False
+    naming_pattern: str = ""
+    luts_dir: str = ""
+    luts: List[Dict[str, str]] = []
+
+
+class BrowseResponse(BaseModel):
+    """Result of asking the machine for a native file/folder picker."""
+    ok: bool
+    path: Optional[str] = None
+    cancelled: bool = False
+    reason: Optional[str] = None
 
 
 class ModelSettings(BaseModel):

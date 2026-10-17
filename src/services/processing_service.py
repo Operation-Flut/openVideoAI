@@ -9,7 +9,7 @@ import threading
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor
 
 from ..processing.pipeline.base import (
@@ -33,6 +33,10 @@ from ..api.schemas import ProcessRequest, PipelineStep, TaskStatus, ProcessingTa
 
 logger = logging.getLogger(__name__)
 
+# Suffixes that make a file a video (an image is written by a pipeline itself,
+# a video goes through the encoder).
+_VIDEO_SUFFIXES = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv", ".m4v", ".ts", ".mpg", ".mpeg", ".wmv"}
+
 
 class ProcessingService:
     """Service for managing and executing processing tasks."""
@@ -51,16 +55,13 @@ class ProcessingService:
         """Create a new processing task."""
         task_id = str(uuid.uuid4())
 
-
-        if request.output_path:
-            output_path = Path(request.output_path)
-        else:
-            input_path = Path(request.input_path)
-            export_dir = exports_dir()
-            export_dir.mkdir(parents=True, exist_ok=True)
-            stem = input_path.stem
-            suffix = self._get_output_suffix(request.output_format, input_path.suffix)
-            output_path = export_dir / f"{stem}_enhanced{suffix}"
+        # Resolve the destination up front: an unwritable folder is reported at
+        # request time instead of minutes into a render.
+        if not request.output_path:
+            try:
+                self.resolve_output_path(request, Path(request.input_path), task_id)
+            except Exception as error:  # pragma: no cover - reported when writing
+                logger.warning("Could not resolve the output path yet: %s", error)
 
         task = ProcessingTask(
             task_id=task_id,
@@ -84,6 +85,65 @@ class ProcessingService:
             "mp4": ".mp4",
         }
         return format_map.get(output_format, input_suffix)
+
+    # -- Export dialog ----------------------------------------------------
+    def export_options(self, request: ProcessRequest, input_path: Path) -> Tuple[Dict[str, Any], List[str]]:
+        """The dialog's choices, normalised against this machine's encoders.
+
+        Returns the option set the encoder will use plus the corrections that
+        had to be made (an unavailable codec, a LUT that is not there, audio the
+        container cannot carry), so the result can explain itself.
+        """
+        from .export_service import normalise_options
+        from .settings_service import get_settings_service
+
+        settings = get_settings_service().get_settings()
+        raw = request.export_options.model_dump() if request.export_options else None
+        return normalise_options(raw, settings, input_path=input_path, allow_sequence=not request.preview)
+
+    def _requested_scale(self, request: ProcessRequest) -> int:
+        """The upscale factor the request asks for, for the naming pattern."""
+        for step in request.steps:
+            if step.feature == "Upscale":
+                try:
+                    scale = int(step.parameters.get("scale"))
+                except (TypeError, ValueError):
+                    continue
+                if scale > 0:
+                    return scale
+        from .settings_service import get_settings_service
+
+        try:
+            return int(get_settings_service().get_settings().export.default_upscale)
+        except Exception:  # pragma: no cover - settings are always readable
+            return 1
+
+    def resolve_output_path(self, request: ProcessRequest, input_path: Path, task_id: str) -> Path:
+        """Where this request writes, honouring the Export dialog's choices."""
+        from .export_service import resolve_output_path as resolve
+        from .settings_service import get_settings_service
+
+        if request.output_path:
+            return Path(request.output_path)
+
+        if request.preview:
+            # Previews are throwaway samples the UI plays; keep them in temp.
+            options, _ = self.export_options(request, input_path)
+            if input_path.suffix.lower() in _VIDEO_SUFFIXES:
+                suffix = f".{options.get('container') or 'mp4'}"
+            else:
+                suffix = self._get_output_suffix(request.output_format.value, input_path.suffix)
+            return temp_processing_dir() / f"{task_id}_preview{suffix}"
+
+        settings = get_settings_service().get_settings()
+        options, _ = self.export_options(request, input_path)
+        return resolve(
+            input_path,
+            options,
+            naming_pattern=settings.export.export_naming,
+            scale=self._requested_scale(request),
+            overwrite=settings.export.overwrite_existing,
+        )
 
     async def start_processing(self, task_id: str, request: ProcessRequest) -> ProcessResponse:
         """Start processing a task."""
@@ -188,16 +248,10 @@ class ProcessingService:
 
             if request.output_path:
                 output_path = Path(request.output_path)
-            elif request.preview:
-                # Keep previews out of the exports folder: they are throwaway
-                # samples the UI fetches from GET /processing/task/{id}/result.
-                output_path = temp_dir / f"{task_id}_preview{input_path.suffix}"
             else:
-                export_dir = exports_dir()
-                export_dir.mkdir(parents=True, exist_ok=True)
-                stem = input_path.stem
-                suffix = self._get_output_suffix(request.output_format.value, input_path.suffix)
-                output_path = export_dir / f"{stem}_enhanced{suffix}"
+                # Previews are kept in temp, exports go to the folder the dialog
+                # asked for (original folder / exports / a chosen folder).
+                output_path = self.resolve_output_path(request, input_path, task_id)
 
             temp_output = temp_dir / f"{task_id}_output{output_path.suffix}"
 
@@ -208,6 +262,13 @@ class ProcessingService:
                 )
                 if sample is not None:
                     temp_input = sample
+
+            # The dialog's choices, resolved into the values the encoder uses.
+            # ``audio_source`` points at the copied input because the pipeline
+            # intermediates carry no audio track.
+            export_options, export_warnings = self.export_options(request, input_path)
+            export_parameters: Dict[str, Any] = dict(export_options)
+            export_parameters["audio_source"] = str(temp_input)
 
             # Build pipeline chain from steps
             if request.steps:
@@ -227,6 +288,7 @@ class ProcessingService:
                 parameters={
                     "output_format": request.output_format.value,
                     "quality": request.quality,
+                    "export": export_parameters,
                     **self._extract_legacy_params(request),
                 },
                 metadata={"task_id": task_id},
@@ -252,17 +314,31 @@ class ProcessingService:
                 produced = Path(result.output_path) if result.output_path else temp_output
                 if not produced.exists():
                     produced = temp_output
-                if produced.suffix and produced.suffix.lower() != output_path.suffix.lower():
+
+                is_sequence = export_options.get("output_type") == "image_sequence" and produced.is_dir()
+
+                if is_sequence:
+                    # Frames are written into a folder next to the planned file
+                    # (``<name>.png`` -> folder ``<name>``).
+                    output_path = output_path.with_suffix("")
+                    if output_path.exists():
+                        if output_path.is_dir():
+                            shutil.rmtree(output_path)
+                        else:
+                            output_path.unlink()
+                elif produced.suffix and produced.suffix.lower() != output_path.suffix.lower():
                     output_path = output_path.with_suffix(produced.suffix)
 
                 output_path.parent.mkdir(parents=True, exist_ok=True)
+                if is_sequence and output_path.exists():
+                    shutil.rmtree(output_path)
                 shutil.move(str(produced), str(output_path))
 
                 task.status = TaskStatus.COMPLETED
                 task.progress = 100.0
                 task.message = "Processing completed"
                 task.completed_at = datetime.now()
-                task.result = result.metadata
+                task.result = self._export_metadata(result.metadata, context, export_options, export_warnings)
                 task.output_path = str(output_path)
 
                 event = ProcessingProgressEvent(
@@ -319,14 +395,43 @@ class ProcessingService:
             try:
                 temp_input_path = temp_dir / f"{task_id}_input{input_path.suffix}"
                 temp_output_path = temp_dir / f"{task_id}_output{output_path.suffix}"
-                for path in (temp_input_path, temp_output_path):
-                    if path.exists():
+                # Image sequences are written into a suffix-less temp folder.
+                sequence_dir = temp_dir / f"{task_id}_output"
+                for path in (temp_input_path, temp_output_path, sequence_dir):
+                    if path.is_dir():
+                        shutil.rmtree(path, ignore_errors=True)
+                    elif path.exists():
                         path.unlink(missing_ok=True)
             except Exception:
                 pass
 
             with self._tasks_lock:
                 self._active_task = None
+
+    def _export_metadata(
+        self,
+        result_metadata: Optional[Dict[str, Any]],
+        context: ProcessingContext,
+        options: Dict[str, Any],
+        warnings: List[str],
+    ) -> Dict[str, Any]:
+        """What a pipeline reported, plus what the export encoder actually did."""
+        from .export_service import summarise
+
+        metadata: Dict[str, Any] = dict(result_metadata or {})
+        if options:
+            metadata["export"] = {
+                key: (str(value) if isinstance(value, Path) else value)
+                for key, value in options.items()
+            }
+            metadata["export_summary"] = summarise(options)
+            metadata["output_type"] = options.get("output_type")
+        collected = list(warnings or []) + list(context.metadata.get("export_warnings") or [])
+        if collected:
+            metadata["export_warnings"] = list(dict.fromkeys(collected))
+        if context.metadata.get("export_encoder"):
+            metadata["encoder"] = context.metadata["export_encoder"]
+        return metadata
 
     def _build_chain_from_steps(self, steps: List[PipelineStep], task_id: str) -> Optional[PipelineChain]:
         """Build pipeline chain from step configurations."""

@@ -291,7 +291,13 @@ class PipelineChain:
                 input_path=current_input,
                 output_path=context.output_path if i == len(self.pipelines) - 1
                 else context.output_path.parent / f"{context.output_path.stem}_stage{i}{context.output_path.suffix}",
-                parameters={**context.parameters, **pipeline.parameters},
+                # The export settings only apply to the file the user keeps: an
+                # intermediate is re-read immediately and stays cheap.
+                parameters={
+                    **context.parameters,
+                    **pipeline.parameters,
+                    "export_final": i == len(self.pipelines) - 1,
+                },
                 metadata=context.metadata,
                 progress_callback=lambda p, m: context.report_progress(
                     (i / len(self.pipelines)) * 100 + (p / 100) * (100 / len(self.pipelines)),

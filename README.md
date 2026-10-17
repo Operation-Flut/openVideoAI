@@ -13,8 +13,8 @@ Local-first toolkit for managing open-source image and video enhancement models.
 
 ## Overview
 
-openVideoAI provides model discovery and downloads, a FastAPI backend, and a
-browser UI for configuring image and video enhancement workflows. It is in
+**openVideoAI** provides model discovery and downloads, a FastAPI backend, and a
+web based UI for configuring image and video enhancement workflows. It is in
 early development: the catalog and UI settings are available, but end-to-end
 media inference and export are not implemented yet.
 
@@ -30,6 +30,18 @@ media inference and export are not implemented yet.
 - Configure enhancement options in the browser UI.
 - Explore model metadata and available feature categories through the API.
 - Run locally without a cloud dependency.
+
+## Progress
+
+| Area | Status |
+|------|--------|
+| Model catalog and model management | Available |
+| Web UI and API | In progress |
+| Enhancement settings | Available (persisted system, GPU, export, and appearance preferences) |
+| Media inference and export | In progress (upscaling is available; full multi-feature export is planned) |
+| CLI, batch processing, and presets | Planned |
+
+For details, see [Project status](docs/PROJECT_STATUS.md).
 
 ## GPU acceleration
 
@@ -90,15 +102,3 @@ shows it, together with the media label, under *Best used for*.
 See [models.md](models.md) for the complete catalog, comparisons, and usage
 notes. Catalog entries describe intended integrations; they do not imply that
 inference is implemented.
-
-## Progress
-
-| Area | Status |
-|------|--------|
-| Model catalog and model management | Available |
-| Web UI and API | In progress |
-| Enhancement settings | Available (persisted system, GPU, export, and appearance preferences) |
-| Media inference and export | In progress (upscaling is available; full multi-feature export is planned) |
-| CLI, batch processing, and presets | Planned |
-
-For details, see [Project status](docs/PROJECT_STATUS.md).

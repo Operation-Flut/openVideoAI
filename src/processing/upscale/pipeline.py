@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional, Union
 import logging
 
 from ...processing.pipeline.base import EnhancementPipeline, PipelineConfig, ProcessingContext, ProcessingResult, ModelLoadError, InferenceError, ProcessingAborted
+from ..pipeline.video_writer import open_video_sink
 from ...models.registry import get_registry, default_model
 
 logger = logging.getLogger(__name__)
@@ -261,12 +262,10 @@ class UpscalePipeline(EnhancementPipeline):
             out_width = width * self.target_scale
             out_height = height * self.target_scale
 
-            # Use mp4v codec for compatibility
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(str(context.output_path), fourcc, fps, (out_width, out_height))
-
-            if not out.isOpened():
-                raise InferenceError(f"Failed to create output video: {context.output_path}")
+            # The final stage is encoded with the Export dialog's codec,
+            # quality, audio and LUT; intermediate stages stay on the fast
+            # built-in writer (see pipeline/video_writer.py).
+            sink = open_video_sink(context.output_path, fps=fps, size=(out_width, out_height), context=context)
 
             processed = 0
             failed = 0
@@ -288,7 +287,7 @@ class UpscalePipeline(EnhancementPipeline):
                         upscaled, _ = self._upsampler.enhance(frame_rgb, outscale=self.target_scale)
 
                     upscaled_bgr = cv2.cvtColor(upscaled, cv2.COLOR_RGB2BGR)
-                    out.write(upscaled_bgr)
+                    sink.write(upscaled_bgr)
                     processed += 1
 
                 except Exception as e:
@@ -296,14 +295,14 @@ class UpscalePipeline(EnhancementPipeline):
                     failed += 1
                     # Fallback: resize with cubic interpolation
                     fallback = cv2.resize(frame, (out_width, out_height), interpolation=cv2.INTER_CUBIC)
-                    out.write(fallback)
+                    sink.write(fallback)
 
                 if processed % 30 == 0 or processed == total_frames:
                     progress = 5 + int((processed / total_frames) * 95)
                     context.report_progress(progress, f"Frame {processed}/{total_frames}")
 
             cap.release()
-            out.release()
+            sink.close()
 
             return ProcessingResult(
                 success=True,

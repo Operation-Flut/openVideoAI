@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional, Union
 import logging
 
 from ...processing.pipeline.base import EnhancementPipeline, PipelineConfig, ProcessingContext, ProcessingResult, ModelLoadError, InferenceError, ProcessingAborted
+from ..pipeline.video_writer import open_video_sink
 from ...models.registry import get_registry, default_model
 
 logger = logging.getLogger(__name__)
@@ -197,10 +198,10 @@ class LowLightPipeline(EnhancementPipeline):
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(str(context.output_path), fourcc, fps, (width, height))
-            if not out.isOpened():
-                raise InferenceError(f"Failed to create output video: {context.output_path}")
+            # The final stage is encoded with the Export dialog's codec,
+            # quality, audio and LUT; intermediate stages stay on the fast
+            # built-in writer (see pipeline/video_writer.py).
+            sink = open_video_sink(context.output_path, fps=fps, size=(width, height), context=context)
 
             processed = 0
             device = next(self._model.parameters()).device if not self._is_classical and self._model is not None else None
@@ -230,18 +231,18 @@ class LowLightPipeline(EnhancementPipeline):
                         output = output.squeeze(0).permute(1, 2, 0).cpu().numpy()
                         output = (output * 255).clip(0, 255).astype(np.uint8)
                         output_bgr = cv2.cvtColor(output, cv2.COLOR_RGB2BGR)
-                    out.write(output_bgr)
+                    sink.write(output_bgr)
                     processed += 1
                 except Exception as e:
                     logger.warning(f"Frame {processed} low-light enhancement failed: {e}")
-                    out.write(frame)
+                    sink.write(frame)
 
                 if processed % 30 == 0 or processed == total_frames:
                     progress = 5 + int((processed / total_frames) * 95)
                     context.report_progress(progress, f"Frame {processed}/{total_frames}")
 
             cap.release()
-            out.release()
+            sink.close()
 
             return ProcessingResult(
                 success=True,

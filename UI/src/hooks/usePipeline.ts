@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../services/api'
 import { usePipelineStore } from '../store'
+import type { ExportOptions } from '../types/api'
 
 export function usePipeline() {
   const {
@@ -55,7 +56,7 @@ export function usePipeline() {
   }, [steps])
 
   // Convenience: start processing with the currently selected file
-  const exportCurrentFile = useCallback(async () => {
+  const exportCurrentFile = useCallback(async (exportOptions?: ExportOptions) => {
     const file = selectedFiles?.[0] || null
     if (!file || steps.length === 0) return
 
@@ -65,7 +66,8 @@ export function usePipeline() {
         file,
         steps,
         outputFormat,
-        quality
+        quality,
+        exportOptions
       )
       // Update processing store with new task
       const { useProcessingStore } = await import('../store')

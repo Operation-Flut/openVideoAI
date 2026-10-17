@@ -5,9 +5,9 @@ import {
 } from 'lucide-react'
 import { usePipeline } from '../hooks/usePipeline'
 import { useModelStore, useUIStore } from '../store'
-import { Badge, Button, Toggle, Slider, Select, Input } from '../components/ui'
+import { Badge, Button, Toggle, Slider, Select, Input, ExportDialog } from '../components/ui'
 import { clsx } from 'clsx'
-import type { ModelResponse } from '../types/api'
+import type { ModelResponse, ExportOptions } from '../types/api'
 import { displayFeature, useFeatureDisplayNames } from '../utils/displayNames'
 import { useFeatures, useFeatureGroups, useModelRecommendations } from '../hooks/useModels'
 import type { FeatureGroupDefinition } from '../types/api'
@@ -219,8 +219,14 @@ export function PipelineSidebar() {
     }
   }
 
-  const handleExport = async () => {
-    await startProcessing()
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
+
+  const handleExport = () => {
+    setExportDialogOpen(true)
+  }
+
+  const handleStartExport = (options: ExportOptions) => {
+    startProcessing(options)
   }
 
   const [busy, setBusy] = useState(false)
@@ -232,46 +238,47 @@ export function PipelineSidebar() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-[var(--color-bg-panel)]">
-      {/* Fixed panel toolbar */}
-      <div className="panel-toolbar justify-between border-b border-[var(--color-border)]">
-        <h2 className="flex items-center gap-2 text-[13px] font-semibold text-[var(--color-text-primary)]">
-          <Layers className="w-4 h-4 text-[var(--color-text-muted)]" />
-          Enhancement
-        </h2>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-            {simpleMode ? 'Simple' : 'Advanced'}
-          </span>
-          <Badge variant={stepCount > 0 ? 'success' : 'outline'} size="sm">
-            {stepCount} Filter{stepCount !== 1 ? 's' : ''} Active
-          </Badge>
-        </div>
-      </div>
-
-      {/* Independently scrolling pipeline body */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
-        {sections.length === 0 && (
-          <div className="module-card p-8 text-center">
-            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-[var(--color-bg-surface)] flex items-center justify-center">
-              <Sparkles className="w-7 h-7 text-[var(--color-border-strong)]" />
-            </div>
-            <h3 className="text-[14px] font-medium text-[var(--color-text-secondary)] mb-1.5">No Filters Available</h3>
-            <p className="text-[12px] text-[var(--color-text-muted)]">
-              No processing pipelines are registered. Check that the backend started correctly.
-            </p>
+    <>
+      <div className="flex flex-col h-full min-h-0 bg-[var(--color-bg-panel)]">
+        {/* Fixed panel toolbar */}
+        <div className="panel-toolbar justify-between border-b border-[var(--color-border)]">
+          <h2 className="flex items-center gap-2 text-[13px] font-semibold text-[var(--color-text-primary)]">
+            <Layers className="w-4 h-4 text-[var(--color-text-muted)]" />
+            Enhancement
+          </h2>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+              {simpleMode ? 'Simple' : 'Advanced'}
+            </span>
+            <Badge variant={stepCount > 0 ? 'success' : 'outline'} size="sm">
+              {stepCount} Filter{stepCount !== 1 ? 's' : ''} Active
+            </Badge>
           </div>
-        )}
+        </div>
 
-        {sections.map((section) => {
-          const Icon = section.icon
-          const feature = featureFor(section)
-          const availableModels = getAvailableModels(feature)
-          const selectableModels = modelsFor(feature)
-          const downloadedCount = selectableModels.filter(m => m.downloaded).length
-          const step = steps.find(s => s.feature === feature)
-          const isEnabled = !!step
-          const isExpanded = expanded.has(section.key)
+        {/* Independently scrolling pipeline body */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
+          {sections.length === 0 && (
+            <div className="module-card p-8 text-center">
+              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-[var(--color-bg-surface)] flex items-center justify-center">
+                <Sparkles className="w-7 h-7 text-[var(--color-border-strong)]" />
+              </div>
+              <h3 className="text-[14px] font-medium text-[var(--color-text-secondary)] mb-1.5">No Filters Available</h3>
+              <p className="text-[12px] text-[var(--color-text-muted)]">
+                No processing pipelines are registered. Check that the backend started correctly.
+              </p>
+            </div>
+          )}
+
+          {sections.map((section) => {
+            const Icon = section.icon
+            const feature = featureFor(section)
+            const availableModels = getAvailableModels(feature)
+            const selectableModels = modelsFor(feature)
+            const downloadedCount = selectableModels.filter(m => m.downloaded).length
+            const step = steps.find(s => s.feature === feature)
+            const isEnabled = !!step
+            const isExpanded = expanded.has(section.key)
           const recommendation = recommendationFor(feature)
           const smartPicked = Boolean(recommendation && step?.model === recommendation.model)
           const schema = getParametersSchema(feature)
@@ -529,6 +536,15 @@ export function PipelineSidebar() {
         </div>
       )}
     </div>
+
+    <ExportDialog
+      open={exportDialogOpen}
+      onClose={() => setExportDialogOpen(false)}
+      onStartExport={handleStartExport}
+      selectedFile={selectedFiles?.[0] || null}
+      steps={steps}
+    />
+  </>
   )
 }
 

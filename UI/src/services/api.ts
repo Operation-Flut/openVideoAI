@@ -16,6 +16,9 @@ import type {
   HealthResponse,
   OutputFormat,
   ProcessingFeaturesResponse,
+  ExportOptionsResponse,
+  BrowseResponse,
+  ExportOptions,
 } from '../types/api'
 
 const API_BASE = '/api'
@@ -137,13 +140,17 @@ class ApiService {
     file: File,
     steps: PipelineStep[],
     outputFormat: OutputFormat,
-    quality: string
+    quality: string,
+    exportOptions?: ExportOptions
   ): Promise<ProcessingTask> {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('steps', JSON.stringify(steps))
     formData.append('output_format', outputFormat)
     formData.append('quality', quality)
+    if (exportOptions) {
+      formData.append('export_options', JSON.stringify(exportOptions))
+    }
 
     const response = await this.client.post<ProcessingTask>('/processing/file', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -198,6 +205,36 @@ class ApiService {
 
   async listTasks(): Promise<ProcessingTask[]> {
     const response = await this.client.get<ProcessingTask[]>('/processing/tasks')
+    return response.data
+  }
+
+  /**
+   * The schema the Export dialog renders (GET /processing/export/options).
+   */
+  async getExportOptions(
+    inputName?: string,
+    scale?: number
+  ): Promise<ExportOptionsResponse> {
+    const params = new URLSearchParams()
+    if (inputName) params.set('input_name', inputName)
+    if (scale !== undefined) params.set('scale', String(scale))
+    const response = await this.client.get<ExportOptionsResponse>(`/processing/export/options?${params}`)
+    return response.data
+  }
+
+  /**
+   * Ask the machine for a native file/folder picker (POST /processing/system/browse).
+   */
+  async systemBrowse(
+    kind: 'file' | 'folder',
+    suffixes?: string[],
+    startDir?: string
+  ): Promise<BrowseResponse> {
+    const response = await this.client.post<BrowseResponse>('/processing/system/browse', {
+      kind,
+      suffixes,
+      start_dir: startDir,
+    })
     return response.data
   }
 

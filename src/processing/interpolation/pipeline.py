@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional, Union, List, Tuple
 import logging
 
 from ...processing.pipeline.base import EnhancementPipeline, PipelineConfig, ProcessingContext, ProcessingResult, ModelLoadError, InferenceError, ProcessingAborted
+from ..pipeline.video_writer import open_video_sink
 from ...models.registry import get_registry, default_model
 
 logger = logging.getLogger(__name__)
@@ -257,11 +258,10 @@ class FrameInterpolationPipeline(EnhancementPipeline):
                 out_fps = fps * self.multiplier
                 frame_multiplier = self.multiplier
 
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(str(context.output_path), fourcc, out_fps, (width, height))
-
-            if not out.isOpened():
-                raise InferenceError(f"Failed to create output video: {context.output_path}")
+            # The final stage is encoded with the Export dialog's codec,
+            # quality, audio and LUT; intermediate stages stay on the fast
+            # built-in writer (see pipeline/video_writer.py).
+            sink = open_video_sink(context.output_path, fps=out_fps, size=(width, height), context=context)
 
             context.report_progress(5, f"Reading first frame")
 
@@ -270,7 +270,7 @@ class FrameInterpolationPipeline(EnhancementPipeline):
             if not ret:
                 raise InferenceError("Empty video")
 
-            out.write(prev_frame)
+            sink.write(prev_frame)
             written_frames = 1
             processed_pairs = 0
 
@@ -292,7 +292,7 @@ class FrameInterpolationPipeline(EnhancementPipeline):
                 # Check for scene change
                 if self.use_scene_detection and self._detect_scene_change(prev_frame, next_frame):
                     # Scene change - just write next frame without interpolation
-                    out.write(next_frame)
+                    sink.write(next_frame)
                     written_frames += 1
                 else:
                     # Interpolate frames between prev and next
@@ -301,7 +301,7 @@ class FrameInterpolationPipeline(EnhancementPipeline):
                         for i in range(1, frame_multiplier):
                             t = i / frame_multiplier
                             interp_frame = self._warp_frame(prev_frame, flow, t)
-                            out.write(interp_frame)
+                            sink.write(interp_frame)
                             written_frames += 1
                     else:
                         # AI-based interpolation
@@ -321,11 +321,11 @@ class FrameInterpolationPipeline(EnhancementPipeline):
 
                                 interp_frame = interp_tensor.squeeze(0).permute(1, 2, 0).cpu().numpy()
                                 interp_frame = (interp_frame * 255).clip(0, 255).astype(np.uint8)
-                                out.write(interp_frame)
+                                sink.write(interp_frame)
                                 written_frames += 1
 
                     # Write the next frame
-                    out.write(next_frame)
+                    sink.write(next_frame)
                     written_frames += 1
 
                 processed_pairs += 1
@@ -337,7 +337,7 @@ class FrameInterpolationPipeline(EnhancementPipeline):
                 prev_frame = next_frame
 
             cap.release()
-            out.release()
+            sink.close()
 
             context.report_progress(100, f"Complete: {written_frames} frames at {out_fps:.1f}fps")
 

@@ -95,6 +95,7 @@ export interface ProcessRequest {
   steps: PipelineStep[]
   output_format: OutputFormat
   quality: string
+  export_options?: ExportOptions
 }
 
 export type OutputFormat = 'source' | 'jpg' | 'png' | 'webp' | 'tiff' | 'mp4'
@@ -249,7 +250,84 @@ export interface ExportSettings {
   export_naming: string
   overwrite_existing: boolean
   video_codec: string
-  video_crf: number
+  video_quality: 'low' | 'medium' | 'high'
+  video_profile: string
+  container: string
+  bitrate_mode: 'dynamic' | 'constant'
+  video_bitrate_mbps: number
+  audio_mode: string
+  output_type: 'video' | 'image_sequence'
+  image_format: string
+  lut_path: string
+  save_to: 'original' | 'exports' | 'custom'
+}
+
+export interface ExportOptions {
+  [key: string]: any
+  output_type?: string
+  filename?: string
+  save_to?: string
+  export_dir?: string
+  container?: string
+  codec?: string
+  profile?: string
+  bitrate_mode?: string
+  bitrate_mbps?: number
+  quality?: string
+  audio_mode?: string
+  image_format?: string
+  jpg_quality?: number
+  lut_path?: string
+}
+
+export interface ExportField {
+  key: string
+  label: string
+  control: 'text' | 'select' | 'segmented' | 'number' | 'browse'
+  default?: any
+  options?: ExportFieldOption[]
+  option_sets?: Record<string, ExportFieldOption[]>
+  depends_on?: Record<string, string[]>
+  applies_to_codecs?: string[]
+  browse?: 'file' | 'folder'
+  filters?: string[]
+  choices?: { value: string; label: string }[]
+  choices_dir?: string
+  unit?: string
+  min?: number
+  max?: number
+  step?: number
+  disabled?: boolean
+  reason?: string
+  help?: string
+}
+
+export interface ExportFieldOption {
+  value: string
+  label: string
+  help?: string
+  codecs?: string[]
+  containers?: string[]
+  disabled?: boolean
+  reason?: string
+}
+
+export interface ExportOptionsResponse {
+  fields: ExportField[]
+  defaults: Record<string, any>
+  ffmpeg: { available: boolean; path?: string }
+  nvidia: boolean
+  native_dialogs: boolean
+  naming_pattern: string
+  luts_dir: string
+  luts: { value: string; label: string }[]
+}
+
+export interface BrowseResponse {
+  ok: boolean
+  path?: string
+  cancelled?: boolean
+  reason?: string
 }
 
 export interface ModelSettings {

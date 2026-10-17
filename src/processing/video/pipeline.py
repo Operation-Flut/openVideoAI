@@ -11,6 +11,7 @@ import logging
 from collections import deque
 
 from ...processing.pipeline.base import EnhancementPipeline, PipelineConfig, ProcessingContext, ProcessingResult, ModelLoadError, InferenceError, ProcessingAborted
+from ..pipeline.video_writer import open_video_sink
 from ...models.registry import get_registry, default_model
 
 logger = logging.getLogger(__name__)
@@ -134,11 +135,10 @@ class RealBasicVSRPipeline(EnhancementPipeline):
             out_width = width * self.scale
             out_height = height * self.scale
 
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(str(context.output_path), fourcc, fps, (out_width, out_height))
-
-            if not out.isOpened():
-                raise InferenceError(f"Failed to create output video: {context.output_path}")
+            # The final stage is encoded with the Export dialog's codec,
+            # quality, audio and LUT; intermediate stages stay on the fast
+            # built-in writer (see pipeline/video_writer.py).
+            sink = open_video_sink(context.output_path, fps=fps, size=(out_width, out_height), context=context)
 
             device = next(self._model.parameters()).device
             processed = 0
@@ -194,14 +194,14 @@ class RealBasicVSRPipeline(EnhancementPipeline):
                     output = (output * 255).clip(0, 255).astype(np.uint8)
                     output_bgr = cv2.cvtColor(output, cv2.COLOR_RGB2BGR)
 
-                    out.write(output_bgr)
+                    sink.write(output_bgr)
                     processed += 1
 
                     if processed % 10 == 0 or processed == total_frames:
                         progress = 5 + int((processed / total_frames) * 95)
                         context.report_progress(progress, f"Frame {processed}/{total_frames}")
 
-            out.release()
+            sink.close()
 
             return ProcessingResult(
                 success=True,
@@ -373,11 +373,10 @@ class TSRNRTVDPipeline(EnhancementPipeline):
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(str(context.output_path), fourcc, fps, (width, height))
-
-            if not out.isOpened():
-                raise InferenceError(f"Failed to create output video: {context.output_path}")
+            # The final stage is encoded with the Export dialog's codec,
+            # quality, audio and LUT; intermediate stages stay on the fast
+            # built-in writer (see pipeline/video_writer.py).
+            sink = open_video_sink(context.output_path, fps=fps, size=(width, height), context=context)
 
             device = next(self._model.parameters()).device
             processed = 0
@@ -405,7 +404,7 @@ class TSRNRTVDPipeline(EnhancementPipeline):
                     output = (output * 255).clip(0, 255).astype(np.uint8)
                     output_bgr = cv2.cvtColor(output, cv2.COLOR_RGB2BGR)
 
-                    out.write(output_bgr)
+                    sink.write(output_bgr)
                     processed += 1
                     self._frame_count += 1
 
@@ -418,7 +417,7 @@ class TSRNRTVDPipeline(EnhancementPipeline):
                         context.report_progress(progress, f"Frame {processed}/{total_frames}")
 
             cap.release()
-            out.release()
+            sink.close()
 
             return ProcessingResult(
                 success=True,

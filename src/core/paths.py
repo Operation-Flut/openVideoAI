@@ -104,6 +104,21 @@ def models_json() -> Path:
     return bundle_dir() / "models.json"
 
 
+def luts_dir() -> Path:
+    """
+    Cubes (``.cube`` 3D LUTs) the Export dialog can apply without typing a path.
+
+    User content, so it lives next to the models when frozen and in the project
+    root in dev mode.
+    """
+    if is_frozen():
+        d = _appdata_root() / "luts"
+    else:
+        d = bundle_dir() / "luts"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def temp_processing_dir() -> Path:
     if is_frozen():
         d = _temp_root() / "processing"

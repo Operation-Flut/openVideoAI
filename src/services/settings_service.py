@@ -214,6 +214,10 @@ class SettingsService:
         enums = {
             "gpu.compute_backend": ["auto", "cuda", "amd", "hip", "dml", "metal", "cpu"],
             "export.output_format": ["source", "jpg", "png", "webp", "tiff", "mp4"],
+            "export.output_type": ["video", "image_sequence"],
+            "export.video_quality": ["low", "medium", "high"],
+            "export.bitrate_mode": ["dynamic", "constant"],
+            "export.save_to": ["original", "exports", "custom"],
             "appearance.theme": ["light", "dark", "system"],
             "appearance.font_size": ["small", "medium", "large"],
             "appearance.density": ["compact", "comfortable", "spacious"],

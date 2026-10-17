@@ -48,8 +48,18 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "export_dir": "./exports",
         "export_naming": "{name}_enhanced_{scale}x",
         "overwrite_existing": False,
+        # Export dialog defaults (the dialog changes these when it is used).
         "video_codec": "libx264",
-        "video_crf": 18,
+        "video_quality": "high",
+        "video_profile": "",
+        "container": "mp4",
+        "bitrate_mode": "dynamic",
+        "video_bitrate_mbps": 12.0,
+        "audio_mode": "copy",
+        "output_type": "video",
+        "image_format": "png",
+        "lut_path": "",
+        "save_to": "exports",
     },
     # Model Management
     "models": {
