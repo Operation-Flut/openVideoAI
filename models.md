@@ -28,7 +28,7 @@ metadata-only. The model manager skips repeated names in the catalog.
 
 | Model | Use | Feature(s) | Approx. catalog size | Type | Catalog hardware | Runs in this build |
 | --- | --- | --- | --- | --- | --- | --- |
-| [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | Fast, general-purpose image upscaling and texture enhancement. | Upscale | ~65MB | AI | CUDA | Yes |
+| [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | Fast, general-purpose image upscaling and texture enhancement. | Upscale | ~65MB | AI | CPU-capable | Yes |
 | [CodeFormer](https://github.com/sczhou/CodeFormer) | Advanced face restoration for restoring heavily degraded or blurred facial details. | Face Recovery | ~360MB | AI | CPU-capable | Yes |
 | [NAFNet-SIDD](https://github.com/megvii-research/NAFNet) | Denoises images while preserving fine details. | Denoise | ~464MB | AI | CPU-capable | Yes |
 | [NAFNet-REDS](https://github.com/megvii-research/NAFNet) | General video restoration for blur and complex artifacts. | Sharpen / Deblur, Denoise | ~260MB | AI | CPU-capable | Yes |
@@ -76,8 +76,8 @@ metadata-only. The model manager skips repeated names in the catalog.
 | [Zero-DCE](https://github.com/Li-Chongyi/Zero-DCE) | Tiny AI low-light enhancer that lifts shadows while keeping colors natural. | Low-Light Enhancement | ~3MB | AI | CPU-capable | Yes |
 | Auto Low-Light (Classical) | Instant classical low-light boost with no download. | Low-Light Enhancement | &lt; 1MB | Non-AI (math) | CPU | Yes |
 | HDR (Reinhard Tone Mapping) | Instant SDR to HDR conversion with Reinhard tone mapping. | SDR to HDR | &lt; 1MB | Non-AI (math) | CPU | Yes |
-| [RealESRGAN_x4plus_anime_6B](https://github.com/xinntao/Real-ESRGAN) | Anime/line-art upscaling with a lighter 6-block network. | Upscale, Multipurpose Pipeline | ~18MB | AI | CUDA | Yes |
-| [RealESRGAN_x2plus](https://github.com/xinntao/Real-ESRGAN) | 2x upscaling for photos and video. | Upscale, Video Super Resolution | ~64MB | AI | CUDA | Yes |
+| [RealESRGAN_x4plus_anime_6B](https://github.com/xinntao/Real-ESRGAN) | Anime/line-art upscaling with a lighter 6-block network. | Upscale, Multipurpose Pipeline | ~18MB | AI | CPU-capable | Yes |
+| [RealESRGAN_x2plus](https://github.com/xinntao/Real-ESRGAN) | 2x upscaling for photos and video. | Upscale, Video Super Resolution | ~64MB | AI | CPU-capable | Yes |
 | [ffmpeg](https://ffmpeg.org/) | FFmpeg-based re-encoding (H.264/H.265/AV1). | Reencoding | Built-in (&lt; 1MB) | Non-AI (math) | CPU | Yes |
 | [handbrake](https://handbrake.fr/) | HandBrake CLI re-encoding (no runtime in this build). | Reencoding | Built-in (&lt; 1MB) | Non-AI (math) | CPU | No (metadata only) |
 
@@ -159,12 +159,37 @@ built-in: only non-AI entries without a download URL are treated as built-in.
 Downloading a file alone does not install its runtime, dependencies, or
 inference code.
 
+### Weight files that no runnable entry needs
+
+A local `models/` directory can hold weights that the current build cannot use.
+Nothing is deleted automatically — a file whose entry only lacks a backend is
+re-used as soon as that backend is integrated:
+
+| File | Declared by | Why it is not used |
+| --- | --- | --- |
+| `RealBasicVSR_x4.pth` | RealBasicVSR | backend module not bundled |
+| `best_mprnet_finetuned.pth` | MPRNet | backend module not bundled |
+| `fftformer_GoPro.pth` | FFTformer | backend module not bundled |
+| `tsrnn_bt1_exact_ft.pth` | TSRN-RTVD | backend module not bundled |
+| `deblurring_nafnet_2025may.onnx` | OpenCV NAFNet (ONNX) | metadata-only entry (no ONNX runtime) |
+| `336999_style_lut.pth` | — | not referenced by any catalog entry |
+| `checkpoints.zip` | — | not referenced by any catalog entry |
+| `deblurgan_generator.keras` | — | not referenced by any catalog entry |
+| `latest_net_G_A.pth` | — | not referenced by any catalog entry |
+| `latest_net_C_A.pth` | — | not referenced by any catalog entry |
+
+The bottom five rows are files that no catalog entry declares; the model manager
+never downloads them and they would only be picked up if a future entry pointed
+at them. Together these are roughly 1 GB in a full development checkout.
+
 ### AI, non-AI, and hardware requirements
 
 Each entry can declare the following fields in `models.json`:
 
 - `isAi` — `true` for neural-network models, `false` for pure-math algorithms.
-- `requiresCuda` — `true` when the catalog requires an NVIDIA CUDA-capable GPU.
+- `requiresCuda` — `true` when the entry needs a PyTorch GPU compute backend.
+  The requirement is satisfied by NVIDIA CUDA, AMD ROCm/HIP or AMD/Intel
+  DirectML; it does not mean NVIDIA-only.
 - `requiresMetal` — `true` when the catalog requires Apple Silicon (Metal).
 - `canRunOnCpu` — whether the model can fall back to CPU execution.
 - `arch` — the runtime dispatch key. `null` marks a metadata-only entry: it is
@@ -177,8 +202,11 @@ Each entry can declare the following fields in `models.json`:
 
 The catalog is the single source of truth for these requirements:
 
-- CUDA-required models are only downloadable (and visible as compatible) on
-  machines with a detected CUDA-capable GPU.
+- GPU-required models are only downloadable (and visible as compatible) on
+  machines with a detected PyTorch GPU compute backend: CUDA, ROCm/HIP or
+  DirectML. The Real-ESRGAN family declares neither `requiresCuda` nor
+  `requiresMetal`, because it falls back to fp32 CPU inference and also runs on
+  DirectML.
 - Metal-required models are only downloadable on Apple Silicon devices.
 - Non-AI entries with no download URL are treated as **built-in**: they are
   reported as already available, need no download, and appear in the UI filter

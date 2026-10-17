@@ -15,9 +15,9 @@
                 }
             ],
             "isAi": true,
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
-            "canRunOnCpu": false,
+            "canRunOnCpu": true,
             "arch": "RealESRGANer",
             "runtime": {
                 "scale": 4,
@@ -1194,7 +1194,7 @@
                     "description": "Sharpens and enlarges animation without introducing ringing."
                 }
             ],
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
             "arch": "RealESRGANer",
@@ -1232,7 +1232,7 @@
                     "description": "Frame-by-frame 2x upscaling for video."
                 }
             ],
-            "requiresCuda": true,
+            "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
             "arch": "RealESRGANer",
