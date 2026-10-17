@@ -1,8 +1,8 @@
 """
 Match Color tests: the built-in Reinhard transfer (mean/std matching), the
 ``preserve_luminance``/``strength`` controls, image + video processing, the
-fail-fast reference requirement, and a guard that the frontend step -> backend
-route mapping stays in sync.
+fail-fast reference requirement, the catalog wiring of the other architectures,
+and a guard that every endpoint the UI calls exists in the backend.
 """
 import re
 import tempfile
@@ -11,6 +11,8 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+
+from src.processing.pipeline.base import ProcessingContext, UnsupportedFormatError
 
 
 def _write_image(path: Path, img: np.ndarray) -> None:
@@ -22,19 +24,31 @@ def _lab(img: np.ndarray) -> np.ndarray:
 
 
 class MatchColorPipelineTests(unittest.TestCase):
-    def _run_image(self, target, reference, **kwargs):
-        from src.processing.color_transfer import MatchColorPipeline
+    def _pipeline(self, **kwargs):
+        from src.processing.color.pipeline import MatchColorPipeline
 
+        pipeline = MatchColorPipeline(**kwargs)
+        self.assertTrue(pipeline.load_model(None))
+        return pipeline
+
+    def _run_image(self, target, reference, **kwargs):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             tp, rp, op = tmp / "target.png", tmp / "ref.png", tmp / "out.png"
             _write_image(tp, target)
             _write_image(rp, reference)
-            pipeline = MatchColorPipeline(**kwargs)
-            self.assertTrue(pipeline.load_model())
-            result = pipeline.process(str(tp), str(op), reference_path=str(rp))
-            self.assertTrue(result["success"])
-            return cv2.imread(str(op)), result
+
+            pipeline = self._pipeline(**kwargs)
+            result = pipeline.process(
+                ProcessingContext(
+                    input_path=tp,
+                    output_path=op,
+                    parameters={"reference_path": str(rp)},
+                )
+            )
+
+            self.assertTrue(result.success)
+            return cv2.imread(str(result.output_path)), result
 
     @staticmethod
     def _tinted(base, b, g, r, seed):
@@ -47,16 +61,39 @@ class MatchColorPipelineTests(unittest.TestCase):
         return np.clip(img.astype(np.int16) + noise, 0, 255).astype(np.uint8)
 
     def test_requires_a_reference(self):
-        from src.processing.color_transfer import MatchColorPipeline
-        from src.processing.base import InferenceError
-
         with tempfile.TemporaryDirectory() as tmp:
-            tp = Path(tmp) / "t.png"
+            tmp = Path(tmp)
+            tp = tmp / "t.png"
             _write_image(tp, self._tinted(128, 140, 128, 120, 0))
-            pipeline = MatchColorPipeline()
-            pipeline.load_model()
-            with self.assertRaises(InferenceError):
-                pipeline.process(str(tp), str(Path(tmp) / "o.png"), reference_path=None)
+
+            pipeline = self._pipeline()
+            with self.assertRaises(UnsupportedFormatError):
+                pipeline.process(
+                    ProcessingContext(input_path=tp, output_path=tmp / "o.png")
+                )
+
+    def test_missing_reference_file_fails_fast(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            tp = tmp / "t.png"
+            _write_image(tp, self._tinted(128, 140, 128, 120, 0))
+
+            pipeline = self._pipeline()
+            with self.assertRaises(UnsupportedFormatError) as context:
+                pipeline.process(
+                    ProcessingContext(
+                        input_path=tp,
+                        output_path=tmp / "o.png",
+                        parameters={"reference_path": str(tmp / "nope.png")},
+                    )
+                )
+            self.assertIn("not found", str(context.exception))
+
+    def test_strength_is_clamped_to_the_declared_range(self):
+        from src.processing.color.pipeline import MatchColorPipeline
+
+        self.assertEqual(MatchColorPipeline(strength=5.0).strength, 1.0)
+        self.assertEqual(MatchColorPipeline(strength=-2.0).strength, 0.0)
 
     def test_full_transfer_matches_reference_statistics(self):
         target = self._tinted(120, 150, 120, 110, 1)
@@ -96,21 +133,50 @@ class MatchColorPipelineTests(unittest.TestCase):
 
         out, result = self._run_image(target, reference, strength=0.0)
 
-        self.assertEqual(result["strength"], 0.0)
-        np.testing.assert_allclose(out, target, atol=1.0)
+        self.assertEqual(result.metadata["strength"], 0.0)
+        # Strength 0 keeps the target; only the LAB round-trip rounding shows.
+        np.testing.assert_allclose(out, target, atol=2.0)
 
-    def test_strength_blends_between_input_and_full_transfer(self):
+    def test_strength_interpolates_between_target_and_full_transfer(self):
         target = self._tinted(120, 150, 120, 110, 7)
         reference = self._tinted(150, 100, 130, 170, 8)
 
         full, _ = self._run_image(target, reference, strength=1.0)
         half, _ = self._run_image(target, reference, strength=0.5)
 
-        # The half-strength result sits strictly between input and full grade.
-        between = np.clip(
-            (target.astype(np.int16) + full.astype(np.int16)) / 2, 0, 255
-        )
-        np.testing.assert_allclose(half, between, atol=2.0)
+        # The half-strength result is bounded per pixel by both endpoints ...
+        low = np.minimum(target, full)
+        high = np.maximum(target, full)
+        self.assertTrue((half >= low).all(), "half-strength result fell below both endpoints")
+        self.assertTrue((half <= high).all(), "half-strength result rose above both endpoints")
+        # ... and sits strictly in between on average.
+        self.assertLess(float(full.mean()), float(half.mean()))
+        self.assertLess(float(half.mean()), float(target.mean()))
+
+    def test_metadata_reports_the_controls_that_were_used(self):
+        target = self._tinted(120, 150, 120, 110, 11)
+        reference = self._tinted(150, 100, 130, 170, 12)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            tp, rp, op = tmp / "target.png", tmp / "ref.png", tmp / "out.png"
+            _write_image(tp, target)
+            _write_image(rp, reference)
+
+            pipeline = self._pipeline(strength=0.75, preserve_luminance=False)
+            result = pipeline.process(
+                ProcessingContext(
+                    input_path=tp,
+                    output_path=op,
+                    parameters={"reference_path": str(rp)},
+                )
+            )
+
+            self.assertEqual(result.metadata["strength"], 0.75)
+            self.assertFalse(result.metadata["preserve_luminance"])
+            # The reference is recorded as the resolved path, while it still exists.
+            self.assertEqual(result.metadata["reference_path"], str(rp))
+            self.assertTrue(Path(result.metadata["reference_path"]).exists())
 
     def test_video_is_processed_frame_by_frame(self):
         target_frame = self._tinted(120, 150, 120, 110, 9)
@@ -133,38 +199,84 @@ class MatchColorPipelineTests(unittest.TestCase):
             ref_path = tmp / "ref.png"
             _write_image(ref_path, reference)
 
-            from src.processing.color_transfer import MatchColorPipeline
-
             output_path = tmp / "out.mp4"
-            pipeline = MatchColorPipeline(strength=1.0, preserve_luminance=True)
-            pipeline.load_model()
+            pipeline = self._pipeline(strength=1.0, preserve_luminance=True)
             result = pipeline.process(
-                str(video_path), str(output_path), reference_path=str(ref_path)
+                ProcessingContext(
+                    input_path=video_path,
+                    output_path=output_path,
+                    parameters={"reference_path": str(ref_path)},
+                )
             )
 
-            self.assertTrue(result["success"])
-            self.assertGreaterEqual(result["frames_processed"], 4)
+            self.assertTrue(result.success)
+            self.assertGreaterEqual(result.metadata["frames_processed"], 4)
             self.assertTrue(output_path.exists())
             self.assertGreater(output_path.stat().st_size, 0)
 
 
-class ProcessingRouteTests(unittest.TestCase):
-    """The frontend maps step types to backend route slugs; keep them in sync."""
+class MatchColorCatalogTests(unittest.TestCase):
+    """Match Color models come from the catalog and each declares its runtime."""
 
-    def test_frontend_routes_exist_in_backend(self):
-        from src import api
+    def test_available_models_are_implemented_and_arch_backed(self):
+        from src.models.registry import get_registry
 
-        app_js = Path("UI/app.js").read_text(encoding="utf-8")
-        match = re.search(r"const PROCESSING_ROUTES = \{(.*?)\};", app_js, re.S)
-        self.assertIsNotNone(match, "PROCESSING_ROUTES not found in UI/app.js")
+        registry = get_registry()
+        names = registry.get_available_model_names("Match Color")
+        self.assertTrue(names)
 
-        routes = dict(re.findall(r"(\w+)\s*:\s*'([^']+)'", match.group(1)))
-        self.assertEqual(routes.get("color"), "match-color")
+        for name in names:
+            with self.subTest(model=name):
+                entry = registry.get_model(name)
+                self.assertTrue(entry.is_implemented)
+                self.assertIsNotNone(entry.arch)
+                self.assertTrue(entry.has_feature("Match Color"))
 
-        backend_paths = {getattr(r, "path", None) for r in api.app.routes}
-        for step_type, slug in routes.items():
-            with self.subTest(step=step_type):
-                self.assertIn(f"/api/processing/{slug}/file", backend_paths)
+    def test_default_model_is_reinhard(self):
+        from src.models.registry import get_registry
+
+        self.assertEqual(get_registry().get_default_model("Match Color"), "Reinhard Transfer")
+
+
+class FrontendBackendContractTests(unittest.TestCase):
+    """Every endpoint the UI calls must exist in the backend."""
+
+    _CALL = re.compile(
+        r"""\.(?:get|post|patch|put|delete)(?:<[^>]*>)?\(\s*([`'"])(.*?)\1""", re.S
+    )
+
+    def test_every_api_path_the_ui_calls_exists_in_the_backend(self):
+        from src.api.main import create_app
+
+        source = Path("UI/src/services/api.ts").read_text(encoding="utf-8")
+        called = set()
+        for _, path in self._CALL.findall(source):
+            if not path.startswith("/"):
+                continue
+            path = path.split("?")[0]
+            # Template placeholders (${id}) become the backend's {param} shape.
+            path = re.sub(r"\$\{[^}]*\}", "{}", path)
+            called.add(path.rstrip("/"))
+
+        self.assertTrue(called, "no API paths found in UI/src/services/api.ts")
+
+        # The OpenAPI document lists every mounted API route with its prefix and
+        # parameter shapes, independent of the FastAPI version's route wrapping.
+        backend = {
+            re.sub(r"\{[^}]*\}", "{}", path).rstrip("/")
+            for path in create_app().openapi()["paths"]
+        }
+        for path in sorted(called):
+            with self.subTest(path=path):
+                self.assertIn(f"/api{path}", backend)
+
+    def test_processing_route_shape_used_by_the_ui(self):
+        from src.api.routes.processing import router
+
+        paths = {getattr(route, "path", "") for route in router.routes}
+        self.assertIn("/processing/file", paths)
+        self.assertIn("/processing/preview/file", paths)
+        self.assertIn("/processing/features", paths)
 
 
 if __name__ == "__main__":

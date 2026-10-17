@@ -1,12 +1,14 @@
 """
-Denoise model integration tests: the bundled SCUNet / NAFNet-SIDD weights
-load 1:1 into the vendored architectures and run. Skipped when the weights
-are not present (never auto-downloaded by the test suite).
+Denoise model integration tests: the bundled SCUNet / NAFNet weights load 1:1
+into the vendored architectures and run through the catalog-driven pipeline.
+Skipped when the weights are not present (never auto-downloaded by the tests).
 """
 import unittest
 from pathlib import Path
 
 import numpy as np
+
+from src.processing.pipeline.base import ProcessingContext
 
 
 class SCUNetWindowAttentionTests(unittest.TestCase):
@@ -129,51 +131,73 @@ class SCUNetModelTests(unittest.TestCase):
         if not ckpt.exists():
             self.skipTest("SCUNet checkpoint not downloaded")
 
-        from src.processing.denoising import DenoisePipeline
+        from src.processing.denoise.pipeline import DenoisePipeline
 
         pipeline = DenoisePipeline(model_name="SCUNet", device="cpu", strength=0.7)
         self.assertTrue(pipeline.load_model(str(ckpt)))
 
         input_image = np.random.default_rng(7).integers(0, 256, (96, 128, 3), dtype=np.uint8)
         with tempfile.TemporaryDirectory() as tmp:
-            input_path = str(Path(tmp) / "noisy.png")
-            output_path = str(Path(tmp) / "clean.png")
-            self.assertTrue(cv2.imwrite(input_path, input_image))
+            tmp = Path(tmp)
+            input_path, output_path = tmp / "noisy.png", tmp / "clean.png"
+            self.assertTrue(cv2.imwrite(str(input_path), input_image))
 
-            result = pipeline.process(input_path, output_path)
-            self.assertTrue(result["success"])
-            self.assertEqual(result["model"], "SCUNet")
-            output = cv2.imread(output_path)
+            result = pipeline.process(
+                ProcessingContext(input_path=input_path, output_path=output_path)
+            )
+
+            self.assertTrue(result.success)
+            self.assertEqual(result.model_used, "SCUNet")
+            self.assertEqual(result.metadata["model_arch"], "SCUNet")
+            self.assertEqual(result.metadata["strength"], 0.7)
+            output = cv2.imread(str(result.output_path))
             self.assertEqual(output.shape, input_image.shape)
 
 
 class NAFNetSIDDModelTests(unittest.TestCase):
     def test_nafnet_sidd_pipeline_loads_and_runs(self):
-        """End-to-end: the Denoise pipeline loads NAFNet-SIDD weights with the
-        correct SIDD block layout and processes a tile through the delegated
-        (tiled) SharpenPipeline."""
+        """End-to-end: the Denoise pipeline builds the SIDD block layout from the
+        catalog entry, loads the released checkpoint and processes an image."""
+        import tempfile
+        from pathlib import Path as _Path
+
+        import cv2
         import torch
 
-        ckpt = Path("models/NAFNet-SIDD-width64.pth")
+        ckpt = _Path("models/NAFNet-SIDD-width64.pth")
         if not ckpt.exists():
             self.skipTest("NAFNet-SIDD checkpoint not downloaded")
 
-        from src.processing.denoising import DenoisePipeline
+        from src.processing.denoise.pipeline import DenoisePipeline
 
-        pipeline = DenoisePipeline(model_name="NAFNet-SIDD", device="cpu", strength=0.7, tile_size=128)
+        pipeline = DenoisePipeline(model_name="NAFNet-SIDD", device="cpu", strength=0.7)
         self.assertTrue(pipeline.load_model(str(ckpt)))
 
-        tile = np.random.default_rng(0).integers(0, 256, (128, 128, 3), dtype=np.uint8)
-        output = pipeline._nafnet_pipeline._run_model(tile)
-        self.assertEqual(output.shape, (128, 128, 3))
-        self.assertEqual(output.dtype, np.uint8)
-
-        # The delegated pipeline must have used the SIDD block layout.
-        model = pipeline._nafnet_pipeline._model
+        # The catalog's runtime block selected the SIDD layout, not the GoPro one.
+        model = pipeline._model
+        self.assertIsInstance(model, torch.nn.Module)
         self.assertEqual(len(model.middle_blks), 12)
         self.assertEqual([len(e) for e in model.encoders], [2, 2, 4, 8])
         self.assertEqual([len(d) for d in model.decoders], [2, 2, 2, 2])
-        self.assertTrue(isinstance(model, torch.nn.Module))
+
+        tile = np.random.default_rng(0).integers(0, 256, (64, 80, 3), dtype=np.uint8)
+        output = pipeline._run_model(tile)
+        self.assertEqual(output.shape, (64, 80, 3))
+        self.assertEqual(output.dtype, np.uint8)
+
+        input_image = np.random.default_rng(1).integers(0, 256, (64, 80, 3), dtype=np.uint8)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = _Path(tmp)
+            input_path, output_path = tmp / "noisy.png", tmp / "clean.png"
+            self.assertTrue(cv2.imwrite(str(input_path), input_image))
+
+            result = pipeline.process(
+                ProcessingContext(input_path=input_path, output_path=output_path)
+            )
+
+            self.assertTrue(result.success)
+            self.assertEqual(result.metadata["model_arch"], "NAFNet")
+            self.assertEqual(cv2.imread(str(result.output_path)).shape, input_image.shape)
 
 
 if __name__ == "__main__":

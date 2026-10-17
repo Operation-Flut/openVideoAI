@@ -8,14 +8,57 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Cancel superseded runs on the same branch/PR to save runner minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# CI only ever reads the repository.
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+  # CI runners have no GPU. Installing CPU-only PyTorch avoids pulling the
+  # ~2.5 GB CUDA runtime on every matrix leg.
+  TORCH_INDEX_URL: "https://download.pytorch.org/whl/cpu"
+
 jobs:
-  test:
+  # ---------------------------------------------------------------------------
+  # Fast, dependency-free syntax gate. Runs in a few seconds and fails early.
+  # ---------------------------------------------------------------------------
+  static:
+    name: Static checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Byte-compile sources
+        run: python -m compileall -q src main.py scripts
+
+  # ---------------------------------------------------------------------------
+  # Backend: install the real dependency set, run the pytest suite, boot the
+  # actual server entry point and probe the health endpoint.
+  #
+  # The suite does not download anything: checkpoint tests skip when the
+  # weights are absent, which is always the case on CI runners.
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -25,24 +68,40 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
 
-      - name: Install dependencies
+      - name: Install CPU PyTorch
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install python-multipart
+          pip install torch torchvision --index-url "$TORCH_INDEX_URL"
 
-      - name: Run smoke check
+      - name: Install project dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - name: Run test suite
+        run: python -m pytest tests -q
+
+      - name: Smoke-test the API
         shell: bash
         run: |
-          # Headless runners have no GUI backend, so run the API-only mode and
-          # probe the HTTP endpoint instead of opening a desktop window.
+          set -uo pipefail
+
           python main.py --mode server --port 8000 &
           SERVER_PID=$!
+          # Make sure the server is stopped even if the probe fails.
+          cleanup() { kill "$SERVER_PID" 2>/dev/null || true; }
+          trap cleanup EXIT
 
           ready=""
-          for _ in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8000/api/status >/dev/null 2>&1; then
+          # The FastAPI app imports the whole processing stack on startup, which
+          # can take a while on a cold runner - wait up to ~5 minutes.
+          for _ in $(seq 1 300); do
+            if curl -fsS http://127.0.0.1:8000/api/health >/dev/null 2>&1; then
               ready="1"
               break
             fi
@@ -54,17 +113,38 @@ jobs:
           done
 
           if [ -z "$ready" ]; then
-            echo "Server did not respond within 60s" >&2
-            kill "$SERVER_PID" 2>/dev/null || true
+            echo "Server did not respond on /api/health within 300s" >&2
             exit 1
           fi
 
           echo "Health check response:"
-          curl -fsS http://127.0.0.1:8000/api/status
+          curl -fsS http://127.0.0.1:8000/api/health
+          echo
 
-          kill "$SERVER_PID" 2>/dev/null || true
-          wait "$SERVER_PID" 2>/dev/null || true
+  # ---------------------------------------------------------------------------
+  # Frontend: the built SPA (UI/dist) is what the desktop app serves and what
+  # the release installers bundle, so it must compile here.
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: UI
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
 
-      - name: Compile project
-        run: |
-          python -m compileall src main.py
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: UI/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check and build
+        run: npm run build

@@ -27,6 +27,7 @@ configuring enhancement options. The model catalog is documented in
 | Dedicated Motion deblur | not implemented | Necessary Models are added, but no dedicated Function for this application implemented |
 | Fix compression | planned | not yet started |
 | FCK AI Mode (when enabeled it disabeles any AI Model and its features so the app purely relies on NON-AI, math, algorithem, etc models)| planned | Necessary Models are implemented |
+| JXL (JPEG XL), avif Image Format support | planned | not started |
 
 
 ## API endpoints

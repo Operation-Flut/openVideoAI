@@ -17,7 +17,7 @@ from .models import (
     DownloadProgress
 )
 
-__version__ = "0.2.0-alpha"
+__version__ = "0.3.0-beta"
 __all__ = [
     'get_model_manager',
     'initialize_models',

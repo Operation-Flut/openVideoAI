@@ -228,6 +228,66 @@ def get_available_devices() -> List[str]:
     return devices
 
 
+# Compute backends offered in Settings. `auto` and `cpu` are always usable; the
+# GPU entries are only marked available when this machine can actually run them,
+# so the UI never offers a backend that would silently fall back to something
+# else. Labels live here rather than in the UI for the same reason the model
+# catalog does: one source of truth.
+_COMPUTE_BACKENDS: Tuple[Tuple[str, str, Optional[str]], ...] = (
+    ("auto", "Auto", None),
+    ("cuda", "NVIDIA CUDA", "has_cuda"),
+    ("hip", "AMD ROCm (HIP)", "has_hip"),
+    ("dml", "AMD / Intel DirectML", "has_dml"),
+    ("metal", "Apple Metal (MPS)", "has_metal"),
+    ("cpu", "CPU", None),
+)
+
+_COMPUTE_BACKEND_LABELS = {value: label for value, label, _ in _COMPUTE_BACKENDS}
+
+_UNAVAILABLE_REASONS = {
+    "cuda": "No CUDA-capable GPU detected",
+    "hip": "No ROCm (HIP) capable GPU detected",
+    "dml": "DirectML is not available on this machine",
+    "metal": "No Apple Silicon (Metal) GPU detected",
+}
+
+# The settings spelling of a backend -> the torch device type it resolves to.
+BACKEND_DEVICE_TYPES = {
+    "auto": "auto",
+    "cuda": "cuda",
+    "hip": "hip",
+    "dml": "dml",
+    "metal": "mps",
+    "cpu": "cpu",
+}
+
+
+def get_available_compute_backends() -> List[Dict[str, Any]]:
+    """
+    The compute backends this machine can actually use, best first.
+
+    ``available`` is what the Settings UI uses to decide whether an entry is
+    selectable. ``reason`` explains the ones that are not, and ``recommended``
+    marks the entry ``auto`` resolves to, so the UI can label it without
+    duplicating the detection rules.
+    """
+    caps = get_platform_capabilities()
+    best = caps["best_backend"]
+    auto_label = f"Auto ({_COMPUTE_BACKEND_LABELS.get(best, 'CPU')})"
+
+    backends: List[Dict[str, Any]] = []
+    for value, label, capability in _COMPUTE_BACKENDS:
+        available = True if capability is None else bool(caps.get(capability))
+        backends.append({
+            "value": value,
+            "label": auto_label if value == "auto" else label,
+            "available": available,
+            "recommended": value == best,
+            "reason": None if available else _UNAVAILABLE_REASONS.get(value),
+        })
+    return backends
+
+
 def recommended_tile_size(vram_gb: int) -> int:
     """
     Pick a Real-ESRGAN tile size that keeps GPU utilization high while still
@@ -578,4 +638,70 @@ def get_system_hardware_info() -> Dict[str, Any]:
             "implementation": platform.python_implementation(),
         },
         "capabilities": get_platform_capabilities(),
+    }
+
+
+def get_system_info() -> Dict[str, Any]:
+    """Get system information for health checks and status APIs.
+
+    Returns the API-facing shape used by ``SystemStatus`` (numeric
+    ``cpu_threads`` / ``ram_gb`` / ``vram_gb`` and a structured ``gpu``
+    dict) while keeping the legacy flat strings for other consumers.
+    """
+    info = get_system_hardware_info()
+    gpus = info.get("gpus") or []
+
+    # Prefer a selectable accelerator (cuda/hip/metal/dml), then any
+    # OS-detected hardware adapter, and fall back to nothing.
+    primary = next(
+        (
+            g
+            for g in gpus
+            if g.get("selectable") and g.get("backend") not in ("cpu",)
+        ),
+        None,
+    ) or next((g for g in gpus if g.get("backend") == "hardware"), None)
+
+    vram_gb: Optional[float] = None
+    if primary and primary.get("vram"):
+        vram_gb = float(primary["vram"])
+    elif info.get("vram") not in (None, "", "N/A"):
+        try:
+            vram_gb = float(str(info["vram"]).split()[0])
+        except (ValueError, IndexError):
+            vram_gb = None
+
+    ram_details = info.get("ram_details") or {}
+    cpu_details = info.get("cpu_details") or {}
+
+    gpu_dict: Optional[Dict[str, Any]] = None
+    if primary:
+        raw_index = int(primary.get("index", 0))
+        gpu_dict = {
+            "name": primary.get("name") or info.get("gpu") or "Unknown GPU",
+            "vram_gb": vram_gb,
+            "backend": primary.get("backend", "unknown"),
+            "device_id": raw_index if raw_index >= 0 else 0,
+        }
+    elif info.get("gpu"):
+        gpu_dict = {
+            "name": str(info["gpu"]),
+            "vram_gb": vram_gb,
+            "backend": "cpu",
+            "device_id": 0,
+        }
+
+    return {
+        # API-facing shape (SystemStatus / health endpoints)
+        "cpu_threads": int(cpu_details.get("threads") or cpu_details.get("cores") or 0),
+        "ram_gb": float(ram_details.get("total_gb") or 0),
+        "vram_gb": vram_gb,
+        "gpu": gpu_dict,
+        # Legacy flat strings kept for other consumers
+        "cpu": info.get("cpu"),
+        "ram": info.get("ram"),
+        "vram": info.get("vram"),
+        "os": info.get("os"),
+        "python": info.get("python"),
+        "hardware": info,
     }

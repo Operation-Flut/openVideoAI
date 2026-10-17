@@ -1,5 +1,7 @@
 version: 2
 updates:
+  # Python dependencies (backend). Minor/patch bumps are grouped into a single
+  # PR to cut review noise; majors still get their own PR.
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
@@ -8,7 +10,32 @@ updates:
     labels:
       - "dependencies"
       - "python"
+    groups:
+      python-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
+  # Frontend dependencies live in UI/ (React, Vite, Tailwind, ...).
+  - package-ecosystem: "npm"
+    directory: "/UI"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "npm"
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions used by the workflows above.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -16,3 +43,7 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    groups:
+      github-actions:
+        patterns:
+          - "*"

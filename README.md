@@ -8,28 +8,46 @@ Local-first toolkit for managing open-source image and video enhancement models.
 
 ---
 
-> **Status:** Early development. Model discovery, downloads, and UI configuration
-> are available; media processing and export are not fully implemented yet.
+> **Status:** Active development. Model discovery, downloads, UI configuration,
+> multi-feature enhancement pipelines, and full export with codec/quality/audio/LUT
+> control are all working.
 
 ## Overview
 
-openVideoAI provides model discovery and downloads, a FastAPI backend, and a
-browser UI for configuring image and video enhancement workflows. It is in
-early development: the catalog and UI settings are available, but end-to-end
-media inference and export are not implemented yet.
+**openVideoAI** provides model discovery and downloads, a FastAPI backend, and a
+web based UI for configuring image and video enhancement workflows. Multi-feature
+pipelines (upscale, face recovery, denoise, sharpen, color, interpolation, …) run
+end-to-end and write video with the codec, profile, bitrate, audio mode, container
+and LUT you choose in the Export dialog.
 
 ## Screenshots
-| Enhancment Page| Models Manager | 
-| --- | --- |
-| ![Screenshot1](assets/Screenshot1.png) | ![Screenshot2](assets/Screenshot2.png) |
+| Enhancment Page | Models Manager | Export Dialog |
+| --- | --- | --- |
+| ![Screenshot1](assets/Screenshot1.png) | ![Screenshot2](assets/Screenshot2.png) | *(screenshot pending)* |
 
 
 ## Features
 
 - Browse enhancement models and manage local downloads.
-- Configure enhancement options in the browser UI.
-- Explore model metadata and available feature categories through the API.
-- Run locally without a cloud dependency.
+- Build multi-step enhancement pipelines with per-step parameters.
+- Export dialog: codec (H.264/H.265/VP9/AV1-NVENC/HEVC-NVENC), profile,
+  Dynamic/Constant bitrate, quality level, container (MP4/MKV/MOV/WebM),
+  audio mode (Copy/AAC/Opus/MP3/None), Apply LUT (.cube), image sequence output.
+- Smart Select: auto-pick the best model for the loaded file (media, memory, install state).
+- Settings persisted to disk (system resources, GPU backend, export defaults, appearance).
+- Native desktop window via pywebview; also runs in a browser tab.
+
+## Progress
+
+| Area | Status |
+|------|--------|
+| Model catalog and model management | ✅ Available |
+| Web UI and API | ✅ Available |
+| Enhancement settings | ✅ Persisted (system, GPU, export, appearance, models, advanced) |
+| Media inference and export | ✅ Working (all pipelines, real ffmpeg encoder, audio muxing, LUT) |
+| CLI, batch processing, and presets | 🔄 Planned |
+
+For details, see [Project status](docs/PROJECT_STATUS.md).
 
 ## GPU acceleration
 
@@ -70,26 +88,23 @@ The catalog includes image and video restoration models for upscaling, face
 recovery, denoising, sharpening, and frame interpolation, alongside color
 transfer models such as NLUT, Deep Color Transfer, and Reinhard Transfer. It
 also includes pure-math (non-AI) optical-flow algorithms for frame
-interpolation (Farnebäck, DIS, Dual TV-L1, Lucas-Kanade, EpicFlow) that run
-directly on CPU with no model download.
+interpolation (Farnebäck, DIS, Dual TV-L1, Lucas-Kanade) that run directly on
+CPU with no model download. Farnebäck, DIS and Lucas-Kanade work out of the
+box; Dual TV-L1 additionally needs `opencv-contrib-python`.
 
 Each entry declares its compute requirements (`isAi`, `requiresCuda`,
 `requiresMetal`, `canRunOnCpu`) in `models.json`. CUDA-required models can only
 be downloaded on machines with a CUDA-capable GPU, and Metal-required models
-only on Apple Silicon devices.
+only on Apple Silicon devices. Entries may also carry a `media` field
+(`image`, `video` or `both`, the default) marking models that apply to only one
+kind of media; the frame-interpolation and video-encoder entries are video-only.
+The **Smart Select** switch in *Settings → Models* uses those fields, the detected
+hardware and the memory budget in *Settings → System* to choose the best model for
+the file being processed instead of the catalog default — see
+[models.md](models.md#smart-select). Each entry also carries a `bestFor` note on
+when to reach for it and which sibling to prefer instead; the model details popup
+shows it, together with the media label, under *Best used for*.
 
 See [models.md](models.md) for the complete catalog, comparisons, and usage
 notes. Catalog entries describe intended integrations; they do not imply that
 inference is implemented.
-
-## Progress
-
-| Area | Status |
-|------|--------|
-| Model catalog and model management | Available |
-| Web UI and API | In progress |
-| Enhancement settings | Available (persisted system, GPU, export, and appearance preferences) |
-| Media inference and export | In progress (upscaling is available; full multi-feature export is planned) |
-| CLI, batch processing, and presets | Planned |
-
-For details, see [Project status](docs/PROJECT_STATUS.md).

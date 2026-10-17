@@ -474,12 +474,19 @@ class NLUTNet(nn.Module):
 
     @classmethod
     def from_checkpoint(cls, checkpoint_path: str, nsw: str = '2048+32+32',
-                        dim: int = 33, device: str = 'cpu') -> 'NLUTNet':
+                        dim: int = 33, device: str = 'cpu',
+                        strict: bool = True) -> 'NLUTNet':
         """Build NLUTNet and load a NLUT training checkpoint.
 
         ``checkpoint_path`` points at a ``{iter, state_dict, optimizer}``
         checkpoint (e.g. ``336999_style_lut.pth``). The encoder weights are
         part of the checkpoint, so the separate VGG file is not loaded.
+
+        The released checkpoints also carry inference-irrelevant auxiliary
+        modules (an extra ``SB1`` splatting block and a ``blurer``); the LUT
+        classifier consumes exactly the four ``SB2..SB5`` blocks, so those
+        stray tensors can be ignored by passing ``strict=False``. Missing
+        tensors always raise, because the LUT would otherwise be wrong.
         """
         model = cls(nsw, dim)
         checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
@@ -488,11 +495,17 @@ class NLUTNet(nn.Module):
         else:
             state = checkpoint
         state = {k.replace('module.', '', 1): v for k, v in state.items()}
-        missing, unexpected = model.load_state_dict(state, strict=True)
-        if missing or unexpected:
+        missing, unexpected = model.load_state_dict(state, strict=strict)
+        if missing:
             raise ValueError(
                 "NLUT checkpoint state dict mismatch.\n"
                 f"missing: {missing}\nunexpected: {unexpected}"
+            )
+        if unexpected:
+            logger.warning(
+                "NLUT checkpoint ignored %d unused tensor(s) from modules outside "
+                "the inference graph: %s",
+                len(unexpected), sorted({k.split('.')[0] for k in unexpected}),
             )
         model.eval()
         return model.to(device)

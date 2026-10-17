@@ -7,6 +7,8 @@ from typing import Dict, Any
 from ..utils import system_resources
 from . import paths as _paths
 
+__version__ = "1.0.0"
+
 # These are evaluated at import time so they stay stable for the process
 # lifetime, but they already call the right resolver (dev vs. frozen).
 PROJECT_ROOT       = _paths.project_root()
@@ -15,52 +17,81 @@ TEMP_PROCESSING_DIR = _paths.temp_processing_dir()
 MODELS_DIR         = _paths.models_dir()
 EXPORTS_DIR        = _paths.exports_dir()
 
+# Defaults use the same nested shape as ``SettingsModel`` (and as the
+# settings.json written to disk), so ``SettingsModel(**DEFAULT_SETTINGS)``
+# actually applies them. The previous flat camelCase shape was silently
+# ignored by pydantic, which meant e.g. the machine-derived thread count never
+# took effect.
 DEFAULT_SETTINGS: Dict[str, Any] = {
     # System Resources (RAM/VRAM are percentages of system max, CPU is thread count)
-    "maxRamUsage": 85,
-    "maxVramUsage": 95,
-    "cpuThreads": max(1, system_resources.cpu_threads - 1),
-    "tileSize": 400,
-
+    "system": {
+        "max_ram_usage": 85,
+        "max_vram_usage": 95,
+        "cpu_threads": max(1, min(128, system_resources.cpu_threads - 1)),
+        "tile_size": 400,
+    },
     # GPU Acceleration
-    "computeBackend": "auto",  # auto, cuda, amd, hip, dml, metal, cpu
-    "gpuDevice": "auto",
-    "fp16Enabled": True,
-    "tensorrtEnabled": False,
-
+    "gpu": {
+        "compute_backend": "auto",  # auto, cuda, amd, hip, dml, metal, cpu
+        "gpu_device": "auto",
+        "fp16_enabled": True,
+        "tensorrt_enabled": False,
+    },
     # Standard Export & Processing Defaults
-    "defaultUpscale": 4,
-    "defaultTileSize": 400,
-    "outputFormat": "jpg",
-    "jpgQuality": 95,
-    "sharpenOverlap": 128,
-    "sharpenUnsharpAmount": 0.5,
-    "exportDir": "./exports",
-    "exportNaming": "{name}_enhanced_{scale}x",
-    "overwriteExisting": False,
-    "videoCodec": "libx264",
-    "videoCrf": 18,
-
+    "export": {
+        "default_upscale": 4,
+        "default_tile_size": 400,
+        "output_format": "jpg",
+        "jpg_quality": 95,
+        "sharpen_overlap": 128,
+        "sharpen_unsharp_amount": 0.5,
+        "export_dir": "./exports",
+        "export_naming": "{name}_enhanced_{scale}x",
+        "overwrite_existing": False,
+        # Export dialog defaults (the dialog changes these when it is used).
+        "video_codec": "libx264",
+        "video_quality": "high",
+        "video_profile": "",
+        "container": "mp4",
+        "bitrate_mode": "dynamic",
+        "video_bitrate_mbps": 12.0,
+        "audio_mode": "copy",
+        "output_type": "video",
+        "image_format": "png",
+        "lut_path": "",
+        "save_to": "exports",
+    },
     # Model Management
-    "modelDir": "./models",
-    "autoDownloadModels": True,
-    "verifyModels": True,
-    "hideIncompatibleModels": False,
-    "preferAi": True,
-    "advancedMode": False,
-
+    "models": {
+        "model_dir": "./models",
+        "auto_download_models": True,
+        "verify_models": True,
+        "hide_incompatible_models": False,
+        "prefer_ai": True,
+        "advanced_mode": False,
+        # Pick the model that suits the loaded file (media, memory, install
+        # state) when a filter is switched on in the Enhancement sidebar.
+        "smart_select": False,
+    },
     # Appearance
-    "theme": "dark",
-    "accentColor": "#3b82f6",
-    "fontSize": "medium",
-    "density": "comfortable",
-
+    "appearance": {
+        "theme": "dark",
+        "accent_color": "#3b82f6",
+        "font_size": "medium",
+        "density": "comfortable",
+    },
     # Advanced
-    "debugLogging": False,
-    "showMetrics": True,
-    "experimentalFeatures": False
+    "advanced": {
+        "debug_logging": False,
+        "show_metrics": True,
+        "experimental_features": False,
+    },
 }
 
+# Flat camelCase on purpose: ``GET /api/settings`` returns this dict as
+# ``max_values`` and the UI reads ``max_values.cpuThreads`` / ``max_values.tileSize``
+# to bound its sliders. The service maps these keys onto the nested settings
+# fields when clamping/validating (see ``settings_service``).
 MAX_SETTINGS: Dict[str, Any] = {
     "maxRamUsage": 100,
     "maxVramUsage": 100,
