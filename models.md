@@ -289,3 +289,63 @@ The model implementations and pretrained checkpoints may have different
 licenses. Review the license and usage terms from each upstream project and
 checkpoint provider before using, redistributing, or packaging model files.
 Listing a model here does not grant rights to its code or weights.
+
+## Export dialog — encoder, container, audio, LUT
+
+The **Export** button (bottom of the Enhancement sidebar) opens a two-column
+dialog whose controls come from the backend (`GET /api/processing/export/options`).
+The catalog/encoder rules live in `src/services/export_service.py` — nothing is
+hard-coded in the UI.
+
+### Video output
+
+| Control | Values | Notes |
+|---------|--------|-------|
+| **Codec** | `libx264` (H.264), `libx265` (H.265/HEVC), `libvpx-vp9` (VP9), `av1_nvenc` (AV1 NVENC), `hevc_nvenc` (HEVC NVENC) | NVENC entries need an NVIDIA GPU; they are disabled with a reason when no CUDA device is detected. |
+| **Profile** | `baseline`/`main`/`high` (H.264), `main`/`main10` (H.265) | Only shown for codecs that support profiles. "Automatic" lets the encoder decide. |
+| **Bitrate mode** | Dynamic (CRF), Constant (target bitrate) | Dynamic = one-pass quality-targeted; Constant = predictable file size. |
+| **Quality level** | Low / Medium / High | Maps to per-codec CRF (e.g. libx264: 28 / 23 / 18). Hidden when Constant is chosen. |
+| **Target bitrate** | 1–200 Mbps | Only shown when Constant is chosen. |
+| **Container** | MP4, MKV, MOV, WebM | Codec compatibility is enforced: the dialog disables codecs the container cannot hold and auto-corrects if you submit an invalid pair. |
+| **Audio mode** | Copy from source, AAC 192 kbps, Opus 160 kbps, MP3 192 kbps, No audio | "Copy" keeps the original track; the muxer falls back to AAC if the source codec cannot be copied into the chosen container. When the source has no audio, the option is shown but produces a silent file. |
+| **Apply LUT** | Browse for a `.cube` 3D LUT, or pick from the `luts/` folder next to the models | Requires FFmpeg; disabled when FFmpeg is not on PATH. Applied via `lut3d` filter during the final encode. |
+
+### Image sequence output
+
+When **Output type = Image sequence**, the dialog shows:
+
+- **Image format:** PNG (lossless), JPEG, WebP
+- **Image quality:** 1–100 (JPEG/WebP only)
+- Frames are written as `<name>_000001.png` etc. into a folder; on download the
+  backend zips the folder and streams it.
+
+### Save location
+
+- **Original folder** — next to the source file.
+- **Exports folder** — the app's default `exports/` directory.
+- **Choose a folder** — native OS folder picker (WinForms on Windows, `osascript`
+  on macOS, `zenity`/`kdialog` on Linux). Falls back to a text input when the
+  backend cannot open a picker (headless server, browser tab).
+
+### Persistence
+
+Every control's last-used value is written back to `settings.export` (JSON on
+disk) so the dialog opens with the same choices next time. The naming pattern
+`{name}_enhanced_{scale}x` from *Settings → Export* is used to propose the
+Filename field; you can edit it before exporting.
+
+### Internals
+
+- The final stage of a pipeline chain uses the shared sink
+  (`src/processing/pipeline/video_writer.py`). Intermediate stages keep the
+  fast built-in MP4 writer (they are re-read immediately).
+- If the last step is the **Reencoding** pipeline, its parameters are
+  overridden by the export options so the dialog is the single source of truth.
+- When FFmpeg is not available, the dialog warns and the built-in writer falls
+  back to MPEG-4 part 2 (MP4, no audio, no LUT).
+- The backend endpoint `GET /api/processing/export/options` returns the full
+  schema with per-control `disabled` and `reason` fields; the UI never shows a
+  combination the encoder cannot actually produce.
+- Native file/folder pickers: `POST /api/processing/system/browse` runs the OS
+  dialog on the machine the backend is running on; the UI falls back to typing
+  the path when the backend reports `ok: false`.

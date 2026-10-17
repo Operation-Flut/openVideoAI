@@ -8,38 +8,44 @@ Local-first toolkit for managing open-source image and video enhancement models.
 
 ---
 
-> **Status:** Early development. Model discovery, downloads, and UI configuration
-> are available; media processing and export are not fully implemented yet.
+> **Status:** Active development. Model discovery, downloads, UI configuration,
+> multi-feature enhancement pipelines, and full export with codec/quality/audio/LUT
+> control are all working.
 
 ## Overview
 
 **openVideoAI** provides model discovery and downloads, a FastAPI backend, and a
-web based UI for configuring image and video enhancement workflows. It is in
-early development: the catalog and UI settings are available, but end-to-end
-media inference and export are not implemented yet.
+web based UI for configuring image and video enhancement workflows. Multi-feature
+pipelines (upscale, face recovery, denoise, sharpen, color, interpolation, …) run
+end-to-end and write video with the codec, profile, bitrate, audio mode, container
+and LUT you choose in the Export dialog.
 
 ## Screenshots
-| Enhancment Page| Models Manager | 
-| --- | --- |
-| ![Screenshot1](assets/Screenshot1.png) | ![Screenshot2](assets/Screenshot2.png) |
+| Enhancment Page | Models Manager | Export Dialog |
+| --- | --- | --- |
+| ![Screenshot1](assets/Screenshot1.png) | ![Screenshot2](assets/Screenshot2.png) | *(screenshot pending)* |
 
 
 ## Features
 
 - Browse enhancement models and manage local downloads.
-- Configure enhancement options in the browser UI.
-- Explore model metadata and available feature categories through the API.
-- Run locally without a cloud dependency.
+- Build multi-step enhancement pipelines with per-step parameters.
+- Export dialog: codec (H.264/H.265/VP9/AV1-NVENC/HEVC-NVENC), profile,
+  Dynamic/Constant bitrate, quality level, container (MP4/MKV/MOV/WebM),
+  audio mode (Copy/AAC/Opus/MP3/None), Apply LUT (.cube), image sequence output.
+- Smart Select: auto-pick the best model for the loaded file (media, memory, install state).
+- Settings persisted to disk (system resources, GPU backend, export defaults, appearance).
+- Native desktop window via pywebview; also runs in a browser tab.
 
 ## Progress
 
 | Area | Status |
 |------|--------|
-| Model catalog and model management | Available |
-| Web UI and API | In progress |
-| Enhancement settings | Available (persisted system, GPU, export, and appearance preferences) |
-| Media inference and export | In progress (upscaling is available; full multi-feature export is planned) |
-| CLI, batch processing, and presets | Planned |
+| Model catalog and model management | ✅ Available |
+| Web UI and API | ✅ Available |
+| Enhancement settings | ✅ Persisted (system, GPU, export, appearance, models, advanced) |
+| Media inference and export | ✅ Working (all pipelines, real ffmpeg encoder, audio muxing, LUT) |
+| CLI, batch processing, and presets | 🔄 Planned |
 
 For details, see [Project status](docs/PROJECT_STATUS.md).
 
