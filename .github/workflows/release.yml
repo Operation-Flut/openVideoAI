@@ -629,6 +629,21 @@ jobs:
       - name: List downloaded artifacts
         run: ls -Rl release-artifacts
 
+      - name: Generate and verify SHA-256 checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in release-artifacts/openVideoAI-*; do
+            [[ -f "$file" && "$file" != *.sha256 ]] || continue
+            (cd release-artifacts && sha256sum "$(basename "$file")" > "$(basename "$file").sha256")
+          done
+          checksum_files=(release-artifacts/*.sha256)
+          if ((${#checksum_files[@]} == 0)); then
+            echo "No release artifacts found to checksum."
+            exit 1
+          fi
+          (cd release-artifacts && sha256sum -c ./*.sha256)
+
       - name: Generate release notes
         env:
           # Primary provider: OpenCode CLI with local Ollama (qwen2.5-coder:7b).
@@ -657,6 +672,7 @@ jobs:
             release-artifacts/openVideoAI-linux-x64.tar.gz.part-*
             release-artifacts/openVideoAI-macos.dmg
             release-artifacts/openVideoAI-macos.zip
+            release-artifacts/*.sha256
           draft: ${{ inputs.draft || false }}
           prerelease: ${{ needs.release-info.outputs.prerelease }}
           tag_name: ${{ needs.release-info.outputs.version }}

@@ -231,7 +231,7 @@ export function SettingsPage() {
           )}
 
           {activeTab === 'appearance' && (
-            <Section title="Appearance" description="Customize the visual theme">
+            <Section title="Appearance" description="Customize the theme, accent color, and interface sizing">
               <div className="grid grid-cols-3 gap-2">
                 {THEME_OPTIONS.map((option) => {
                   const Icon = option.icon
@@ -239,7 +239,7 @@ export function SettingsPage() {
                   return (
                     <button
                       key={option.value}
-                      onClick={() => handleUpdate({ appearance: { ...settings.appearance, theme: option.value as any } })}
+                      onClick={() => handleUpdate({ appearance: { ...settings.appearance, theme: option.value } })}
                       className={clsx(
                         'flex flex-col items-center gap-2 p-4 rounded-[var(--radius-md)] border transition-colors duration-[var(--transition-fast)]',
                         active
@@ -253,6 +253,51 @@ export function SettingsPage() {
                   )
                 })}
               </div>
+              <Divider />
+              <Field label="Accent Color">
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="color"
+                    value={settings.appearance.accent_color}
+                    aria-label="Accent color"
+                    className="h-9 w-14 cursor-pointer p-1"
+                    onChange={(event) => handleUpdate({
+                      appearance: { ...settings.appearance, accent_color: event.target.value },
+                    })}
+                  />
+                  <span className="font-mono text-[12px] text-[var(--color-text-secondary)]">
+                    {settings.appearance.accent_color}
+                  </span>
+                </div>
+              </Field>
+              <Divider />
+              <Field label="UI Font Size">
+                <Select
+                  value={settings.appearance.font_size}
+                  onChange={(event) => handleUpdate({
+                    appearance: { ...settings.appearance, font_size: event.target.value as SettingsModel['appearance']['font_size'] },
+                  })}
+                  options={[
+                    { value: 'small', label: 'Small' },
+                    { value: 'medium', label: 'Medium' },
+                    { value: 'large', label: 'Large' },
+                  ]}
+                />
+              </Field>
+              <Divider />
+              <Field label="UI Density">
+                <Select
+                  value={settings.appearance.density}
+                  onChange={(event) => handleUpdate({
+                    appearance: { ...settings.appearance, density: event.target.value as SettingsModel['appearance']['density'] },
+                  })}
+                  options={[
+                    { value: 'compact', label: 'Compact' },
+                    { value: 'comfortable', label: 'Comfortable' },
+                    { value: 'spacious', label: 'Spacious' },
+                  ]}
+                />
+              </Field>
             </Section>
           )}
 

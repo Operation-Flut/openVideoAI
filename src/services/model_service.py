@@ -33,10 +33,10 @@ class ModelService:
 
     def _on_download_progress(self, progress: DownloadProgress) -> None:
         """Forward downloader progress to the event bus."""
+        self._progress[progress.model_name] = progress
         if progress.status in ("completed", "failed"):
             # Terminal states are published by download_model() itself.
             return
-        self._progress[progress.model_name] = progress
         total = progress.total_bytes or 0
         percent = (progress.downloaded_bytes / total * 100.0) if total else 0.0
         self._event_bus.publish(ModelDownloadProgressEvent(

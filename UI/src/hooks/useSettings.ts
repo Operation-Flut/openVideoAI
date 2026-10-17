@@ -15,7 +15,10 @@ export function useUpdateSettings() {
 
   return useMutation({
     mutationFn: (updates: Partial<SettingsModel>) => api.updateSettings(updates),
-    onSuccess: () => {
+    onSuccess: (settings) => {
+      queryClient.setQueryData<SettingsResponse>(['settings'], (current) =>
+        current ? { ...current, settings } : current,
+      )
       queryClient.invalidateQueries({ queryKey: ['settings'] })
       // Settings such as "Experimental Features" change which features/models
       // the backend advertises, so refresh the catalog-derived queries too.
