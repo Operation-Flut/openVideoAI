@@ -59,6 +59,9 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "hide_incompatible_models": False,
         "prefer_ai": True,
         "advanced_mode": False,
+        # Pick the model that suits the loaded file (media, memory, install
+        # state) when a filter is switched on in the Enhancement sidebar.
+        "smart_select": False,
     },
     # Appearance
     "appearance": {

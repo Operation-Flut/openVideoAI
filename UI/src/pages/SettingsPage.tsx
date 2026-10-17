@@ -161,6 +161,29 @@ export function SettingsPage() {
                 step={64}
                 onChange={(v) => handleUpdate({ system: { ...settings.system, tile_size: v } })}
               />
+              <Divider />
+              <SliderField
+                label="Max RAM Usage"
+                value={settings.system.max_ram_usage}
+                min={10}
+                max={Number(settingsResponse.max_values?.maxRamUsage) || 100}
+                step={5}
+                unit="%"
+                onChange={(v) => handleUpdate({ system: { ...settings.system, max_ram_usage: v } })}
+              />
+              <SliderField
+                label="Max VRAM Usage"
+                value={settings.system.max_vram_usage}
+                min={10}
+                max={Number(settingsResponse.max_values?.maxVramUsage) || 100}
+                step={5}
+                unit="%"
+                onChange={(v) => handleUpdate({ system: { ...settings.system, max_vram_usage: v } })}
+              />
+              <p className="text-[11px] text-[var(--color-text-muted)]">
+                Share of the machine's memory a filter may use. Smart Select (Settings → Models)
+                only proposes models that fit these limits.
+              </p>
             </Section>
           )}
 
@@ -220,14 +243,25 @@ export function SettingsPage() {
           )}
 
           {activeTab === 'models' && (
-            <Section title="Model Storage" description="Configure the model cache and download location">
-              <Field label="Model Directory">
-                <Input
-                  value={settings.models.model_dir}
-                  onChange={(e) => handleUpdate({ models: { ...settings.models, model_dir: e.target.value } })}
+            <>
+              <Section title="Model Storage" description="Configure the model cache and download location">
+                <Field label="Model Directory">
+                  <Input
+                    value={settings.models.model_dir}
+                    onChange={(e) => handleUpdate({ models: { ...settings.models, model_dir: e.target.value } })}
+                  />
+                </Field>
+              </Section>
+
+              <Section title="Model Selection" description="How the model is chosen when a filter is switched on">
+                <Toggle
+                  label="Smart Select"
+                  description="Pick the model that suits the file being processed instead of the catalog default: a model marked for video when a video is loaded, and never one that does not fit the memory budget set in System Resources."
+                  checked={settings.models.smart_select}
+                  onChange={(checked) => handleUpdate({ models: { ...settings.models, smart_select: checked } })}
                 />
-              </Field>
-            </Section>
+              </Section>
+            </>
           )}
 
           {activeTab === 'appearance' && (
@@ -408,13 +442,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function SliderField({
-  label, value, min, max, step = 1, onChange,
+  label, value, min, max, step = 1, unit = '', onChange,
 }: {
   label: string
   value: number
   min: number
   max: number
   step?: number
+  unit?: string
   onChange: (value: number) => void
 }) {
   const id = useId()
@@ -422,7 +457,7 @@ function SliderField({
     <div>
       <div className="flex items-center justify-between mb-1.5">
         <label htmlFor={id} className="text-[12px] font-medium text-[var(--color-text-secondary)]">{label}</label>
-        <span className="text-[12px] text-[var(--color-text-primary)] font-mono">{value}</span>
+        <span className="text-[12px] text-[var(--color-text-primary)] font-mono">{value}{unit}</span>
       </div>
       <Slider
         id={id}

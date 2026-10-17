@@ -113,6 +113,38 @@ class ModelResponse(BaseModel):
     additional_paths: Dict[str, str] = Field(default_factory=dict)
 
 
+class ExcludedModel(BaseModel):
+    """A candidate Smart Select ruled out, with the reason why."""
+    model: str
+    reason: str
+
+
+class ModelRecommendation(BaseModel):
+    """The model Smart Select would use for one feature, and why.
+
+    Produced by ``src/services/model_recommender.py``; the wording of ``reason``
+    and ``hint`` is part of the payload so the UI never has to phrase it.
+    """
+    feature: str
+    model: str
+    reason: str
+    media: str = "both"
+    # Best match by fit alone, which may not be installed yet (see `hint`).
+    ideal_model: Optional[str] = None
+    ideal_installed: bool = False
+    needs_download: bool = False
+    fallback: bool = False
+    hint: Optional[str] = None
+    candidates: List[str] = Field(default_factory=list)
+    excluded: List[ExcludedModel] = Field(default_factory=list)
+
+
+class ModelRecommendationsResponse(BaseModel):
+    media: str = "both"
+    smart_select: bool = False
+    recommendations: Dict[str, ModelRecommendation] = Field(default_factory=dict)
+
+
 class DownloadRequest(BaseModel):
     model_name: str
     force: bool = False
@@ -302,6 +334,8 @@ class ModelSettings(BaseModel):
     hide_incompatible_models: bool = False
     prefer_ai: bool = True
     advanced_mode: bool = False
+    # Pick the model that suits the loaded file when a filter is enabled.
+    smart_select: bool = False
 
 
 class AppearanceSettings(BaseModel):

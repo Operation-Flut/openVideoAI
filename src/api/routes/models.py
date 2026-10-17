@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from ...api.schemas import (
     ModelResponse,
+    ModelRecommendationsResponse,
     DownloadRequest,
     DownloadStatus,
     SystemStatus,
@@ -178,6 +179,41 @@ async def list_implemented_features(
             "defaultModel": default_model_name,
         }
     return implemented
+
+
+@router.get("/recommendations", response_model=ModelRecommendationsResponse)
+async def get_model_recommendations(
+    media: Optional[str] = Query(
+        None,
+        description="Media being processed: 'image' or 'video'. Omit when nothing is loaded.",
+    ),
+    feature: Optional[str] = Query(None, description="Limit to a single feature"),
+):
+    """Which model Smart Select would use for each feature, and why.
+
+    Backs the "Smart Select" setting: the Enhancement sidebar looks the feature
+    up here instead of duplicating the catalog and hardware rules. The rankings
+    are computed from the catalog plus the detected hardware, so the endpoint is
+    safe to call whether or not the setting is on.
+    """
+    from ...services.model_recommender import recommend_models
+    from ...services.settings_service import (
+        experimental_features_enabled,
+        smart_select_enabled,
+    )
+
+    features = [feature] if feature else None
+    recommendations = recommend_models(
+        features=features,
+        media=media,
+        include_experimental=experimental_features_enabled(),
+    )
+
+    return ModelRecommendationsResponse(
+        media=media if media in ("image", "video") else "both",
+        smart_select=smart_select_enabled(),
+        recommendations=recommendations,
+    )
 
 
 @router.get("/status", response_model=SystemStatus)

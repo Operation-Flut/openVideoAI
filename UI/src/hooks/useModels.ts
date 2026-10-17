@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../services/api'
 import { useModelStore } from '../store'
 import { setFeatureDisplayNames } from '../utils/displayNames'
+import { useSettings } from './useSettings'
 import type { DownloadProgress } from '../types/api'
 
 export function useModels() {
@@ -118,6 +119,42 @@ export function useSystemStatus() {
     queryFn: () => api.getSystemStatus(),
     refetchInterval: 30000,
   })
+}
+
+/**
+ * Smart Select recommendations (GET /models/recommendations).
+ *
+ * The rules live in the backend (catalog metadata plus detected hardware), so
+ * this hook only supplies the media of the loaded file. The settings that change
+ * the answer (the memory budget and the experimental toggle) are part of the
+ * query key so editing them in Settings refreshes the ranking instead of serving
+ * a stale one. `recommendations` is empty while the setting is off - a disabled
+ * react-query keeps its last data, so the flag is applied here rather than left
+ * to each caller.
+ */
+export function useModelRecommendations(media: 'image' | 'video' | null) {
+  const { data } = useSettings()
+  const settings = data?.settings
+  const smartSelect = settings?.models.smart_select ?? false
+
+  const query = useQuery({
+    queryKey: [
+      'models',
+      'recommendations',
+      media ?? 'both',
+      settings?.system.max_ram_usage ?? null,
+      settings?.system.max_vram_usage ?? null,
+      settings?.advanced.experimental_features ?? null,
+    ],
+    queryFn: () => api.getModelRecommendations(media),
+    enabled: smartSelect,
+    staleTime: 1000 * 60 * 5,
+  })
+
+  return {
+    smartSelect,
+    recommendations: smartSelect ? query.data?.recommendations : undefined,
+  }
 }
 
 export function useModelDownloadProgress(modelName: string | null) {

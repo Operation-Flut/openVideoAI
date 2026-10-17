@@ -77,7 +77,13 @@ box; Dual TV-L1 additionally needs `opencv-contrib-python`.
 Each entry declares its compute requirements (`isAi`, `requiresCuda`,
 `requiresMetal`, `canRunOnCpu`) in `models.json`. CUDA-required models can only
 be downloaded on machines with a CUDA-capable GPU, and Metal-required models
-only on Apple Silicon devices.
+only on Apple Silicon devices. Entries may also carry a `media` field
+(`image`, `video` or `both`, the default) marking models that apply to only one
+kind of media; the frame-interpolation and video-encoder entries are video-only.
+The **Smart Select** switch in *Settings → Models* uses those fields, the detected
+hardware and the memory budget in *Settings → System* to choose the best model for
+the file being processed instead of the catalog default — see
+[models.md](models.md#smart-select).
 
 See [models.md](models.md) for the complete catalog, comparisons, and usage
 notes. Catalog entries describe intended integrations; they do not imply that

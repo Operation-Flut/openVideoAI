@@ -153,6 +153,39 @@ export interface ExperimentalResponse {
   items: ExperimentalItem[]
 }
 
+/** A candidate Smart Select ruled out, with the backend's explanation. */
+export interface ExcludedModel {
+  model: string
+  reason: string
+}
+
+/**
+ * One feature's entry in GET /models/recommendations. The wording of `reason`
+ * and `hint` is produced by the backend so the rules and the text live together.
+ */
+export interface ModelRecommendation {
+  feature: string
+  model: string
+  reason: string
+  media: 'image' | 'video' | 'both'
+  /** Best match by fit alone; may not be installed yet (see `hint`). */
+  ideal_model: string | null
+  ideal_installed: boolean
+  needs_download: boolean
+  /** True when a rule had to be relaxed (e.g. nothing in the catalog for this media). */
+  fallback: boolean
+  hint: string | null
+  candidates: string[]
+  excluded: ExcludedModel[]
+}
+
+/** Shape returned by GET /models/recommendations. */
+export interface ModelRecommendationsResponse {
+  media: 'image' | 'video' | 'both'
+  smart_select: boolean
+  recommendations: Record<string, ModelRecommendation>
+}
+
 export interface ProcessingFeaturesResponse {
   features: Record<string, FeatureInfo>
 }
@@ -221,6 +254,8 @@ export interface ModelSettings {
   hide_incompatible_models: boolean
   prefer_ai: boolean
   advanced_mode: boolean
+  /** Pick the model that suits the loaded file when a filter is switched on. */
+  smart_select: boolean
 }
 
 export interface AppearanceSettings {

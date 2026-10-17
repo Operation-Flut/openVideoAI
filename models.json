@@ -203,6 +203,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "arch": "RIFE",
             "defaultFor": [
                 "Frame Interpolation"
@@ -231,6 +232,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "arch": "RIFE",
             "requiresModule": "src.processing.archs.rife_arch"
         },
@@ -256,6 +258,7 @@
             "requiresCuda": false,
             "requiresMetal": true,
             "canRunOnCpu": false,
+            "media": "video",
             "arch": null
         },
         {
@@ -280,6 +283,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "arch": null
         },
         {
@@ -304,6 +308,7 @@
             "requiresCuda": true,
             "requiresMetal": false,
             "canRunOnCpu": false,
+            "media": "video",
             "arch": null
         },
         {
@@ -328,6 +333,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "arch": null
         },
         {
@@ -352,6 +358,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "arch": "FILM",
             "requiresModule": "src.processing.archs.film_arch"
         },
@@ -377,6 +384,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "arch": "Farneback"
         },
         {
@@ -401,6 +409,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "arch": "DIS"
         },
         {
@@ -425,6 +434,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "arch": "DualTVL1",
             "requiresModule": "cv2.optflow"
         },
@@ -450,6 +460,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "arch": "LucasKanade"
         },
         {
@@ -474,6 +485,7 @@
             "requiresCuda": true,
             "requiresMetal": false,
             "canRunOnCpu": false,
+            "media": "video",
             "arch": "RAFT",
             "requiresModule": "src.processing.archs.raft_arch"
         },
@@ -499,6 +511,7 @@
             "requiresCuda": true,
             "requiresMetal": false,
             "canRunOnCpu": false,
+            "media": "video",
             "arch": "FlowFormer",
             "requiresModule": "src.processing.archs.flowformer_arch"
         },
@@ -524,6 +537,7 @@
             "requiresCuda": true,
             "requiresMetal": false,
             "canRunOnCpu": false,
+            "media": "video",
             "arch": "GMA",
             "requiresModule": "src.processing.archs.gma_arch"
         },
@@ -549,6 +563,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "arch": "SPyNet",
             "requiresModule": "src.processing.archs.spynet_arch"
         },
@@ -578,6 +593,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "arch": "RealBasicVSR",
             "requiresModule": "src.processing.archs.realbasicvsr_arch"
         },
@@ -726,6 +742,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "features": [
                 {
                     "name": "Frame Interpolation",
@@ -1270,6 +1287,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "is_builtin": true,
             "arch": "ffmpeg",
             "defaultFor": [
@@ -1294,6 +1312,7 @@
             "requiresCuda": false,
             "requiresMetal": false,
             "canRunOnCpu": true,
+            "media": "video",
             "is_builtin": true,
             "arch": null
         }

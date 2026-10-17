@@ -130,6 +130,36 @@ on the Enhance page when it has at least one runnable, available model.
   Transfer, and Deep Colour Transfer. NLUT, WCT2 and Reinhard Transfer all run
   in this build; Deep Colour Transfer is metadata-only.
 
+### Smart Select
+
+**Settings → Models → Model Selection → Smart Select** (off by default) makes the
+Enhancement sidebar ask the backend which model to use when a filter is switched
+on, instead of always taking the catalog default. The ranking is built from the
+catalog plus the detected hardware (`src/services/model_recommender.py`, served by
+`GET /models/recommendations`), in this order:
+
+1. only models that can run in this build and on this machine;
+2. only models that fit the **Max RAM Usage** / **Max VRAM Usage** budget in
+   *Settings → System* (peak use is estimated as 2.5× the catalog size in RAM and
+   1.6× in VRAM for entries that require a GPU);
+3. **already installed** models first — processing never downloads on demand, so
+   the pick is always one that can run immediately;
+4. an exact **media** match, then AI ahead of classical algorithms, then the
+   catalog's `defaultFor` entry, then catalog order.
+
+When the best fit for the loaded file is not installed, the sidebar picks the best
+installed alternative and names the model that would be better, pointing at the
+Models page. Nothing is hidden and nothing is forced: with the switch off the
+catalog default is used as before, and a model chosen by hand is never overridden.
+
+`media` is an optional catalog field per model: `"image"`, `"video"` or `"both"`
+(the default, and what leaving the field out means). The video-only entries are the
+frame-interpolation and optical-flow models, the multi-frame restoration entry
+(RealBasicVSR) and the video encoders (FFmpeg, HandBrake); they are never chosen
+for a still image. No video-only entry is runnable in this build today — the only
+catalogued video upscaler, RealBasicVSR, has no bundled runtime — so a video
+currently lands on the best general, still-capable model, and the sidebar says so.
+
 ## LOG footage module
 
 The catalog contains a **LOG Footage Enhancer & Neural Color Grade** module

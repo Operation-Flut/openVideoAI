@@ -17,6 +17,18 @@ from ..core.paths import models_dir, models_json
 
 logger = logging.getLogger(__name__)
 
+MEDIA_TYPES = ("image", "video", "both")
+
+
+def _normalise_media(value: Any) -> str:
+    """Validate a catalog ``media`` value, defaulting to ``both``.
+
+    Unknown or misspelled values are treated as ``both`` so a typo in the
+    catalog can never silently hide a model from a picker.
+    """
+    media = str(value or "").strip().lower()
+    return media if media in MEDIA_TYPES else "both"
+
 
 @dataclass
 class ModelConfig:
@@ -42,6 +54,10 @@ class ModelConfig:
     default_for: List[str] = field(default_factory=list)  # Features this model is the default for
     requires_module: Optional[str] = None  # Optional importable module gating availability
     experimental: bool = False  # Hidden unless "Experimental Features" is enabled in Settings
+    # What the model can be applied to: "image", "video" or "both" (the default,
+    # and what the catalog means by leaving it out). Smart Select uses it so a
+    # video does not get a stills-only model and vice versa.
+    media: str = "both"
 
     @property
     def feature_names(self) -> List[str]:
@@ -49,6 +65,16 @@ class ModelConfig:
 
     def has_feature(self, feature_name: str) -> bool:
         return feature_name in self.feature_names
+
+    def supports_media(self, media: Optional[str]) -> bool:
+        """Whether this model applies to ``image`` / ``video`` media.
+
+        Unknown media (nothing loaded yet) matches everything, and a model
+        marked ``both`` always matches.
+        """
+        if media not in ("image", "video"):
+            return True
+        return self.media == "both" or self.media == media
 
     @property
     def is_implemented(self) -> bool:
@@ -154,6 +180,7 @@ class ModelRegistry:
                     default_for=model_data.get("defaultFor", []),
                     requires_module=model_data.get("requiresModule"),
                     experimental=bool(model_data.get("experimental", False)),
+                    media=_normalise_media(model_data.get("media")),
                 )
                 self._models[config.name] = config
 
@@ -364,6 +391,11 @@ class ModelRegistry:
         """Runtime architecture key for a model (None when not implemented)."""
         config = self._models.get(name)
         return config.arch if config else None
+
+    def get_media(self, name: str) -> str:
+        """Media a model applies to: "image", "video" or "both"."""
+        config = self._models.get(name)
+        return config.media if config else "both"
 
     def get_runtime(self, name: str) -> Dict[str, Any]:
         """Loader hyperparameters declared for a model in the catalog."""

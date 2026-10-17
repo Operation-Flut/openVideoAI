@@ -9,6 +9,7 @@ import type {
   FeatureGroupDefinition,
   ImplementedFeature,
   ExperimentalResponse,
+  ModelRecommendationsResponse,
   SystemStatus,
   SettingsModel,
   SettingsResponse,
@@ -100,6 +101,20 @@ class ApiService {
   /** Features/models the catalog marks as experimental (GET /models/experimental). */
   async getExperimental(): Promise<ExperimentalResponse> {
     const response = await this.client.get<ExperimentalResponse>('/models/experimental')
+    return response.data
+  }
+
+  /**
+   * Which model Smart Select would use for each feature (GET /models/recommendations).
+   * Passing the media of the loaded file lets the backend rank video models for
+   * video and image models for stills.
+   */
+  async getModelRecommendations(
+    media?: 'image' | 'video' | null,
+  ): Promise<ModelRecommendationsResponse> {
+    const response = await this.client.get<ModelRecommendationsResponse>('/models/recommendations', {
+      params: media ? { media } : undefined,
+    })
     return response.data
   }
 

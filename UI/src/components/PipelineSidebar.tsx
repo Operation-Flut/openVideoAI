@@ -9,7 +9,7 @@ import { Badge, Button, Toggle, Slider, Select, Input } from '../components/ui'
 import { clsx } from 'clsx'
 import type { ModelResponse } from '../types/api'
 import { displayFeature, useFeatureDisplayNames } from '../utils/displayNames'
-import { useFeatures, useFeatureGroups } from '../hooks/useModels'
+import { useFeatures, useFeatureGroups, useModelRecommendations } from '../hooks/useModels'
 import type { FeatureGroupDefinition } from '../types/api'
 
 type IconType = ComponentType<{ className?: string }>
@@ -95,6 +95,7 @@ export function PipelineSidebar() {
     availableFeatures,
     outputFormat,
     quality,
+    selectedFiles,
     addStep,
     removeStep,
     updateStep,
@@ -117,6 +118,14 @@ export function PipelineSidebar() {
   const featureLabels = useFeatureDisplayNames()
   const { data: featureGroups } = useFeatureGroups()
 
+  // Smart Select: the backend ranks the models for the file being processed
+  // (media, memory budget, what is installed). The query is disabled while the
+  // setting is off, so nothing here changes unless it is enabled.
+  const media: 'image' | 'video' | null = selectedFiles?.[0]
+    ? (selectedFiles[0].type.startsWith('video/') ? 'video' : 'image')
+    : null
+  const { smartSelect, recommendations } = useModelRecommendations(media)
+
   const sections = useMemo(
     () => buildSections(availableFeatures, simpleMode, featureGroups ?? []),
     [availableFeatures, simpleMode, featureGroups, featureLabels],
@@ -130,6 +139,8 @@ export function PipelineSidebar() {
       .map(catalogModelFor)
       .filter((m): m is ModelResponse => Boolean(m))
   }
+
+  const recommendationFor = (feature: string) => recommendations?.[feature]
 
   const pickModel = (feature: string): string | null => {
     // Work with pipeline keys (the value the backend expects) but rank them by
@@ -145,6 +156,12 @@ export function PipelineSidebar() {
   }
 
   const initialModel = (feature: string): string | null => {
+    // Smart Select wins when it has an answer the picker can offer.
+    const recommended = recommendationFor(feature)?.model
+    if (recommended && getAvailableModels(feature).includes(recommended)) return recommended
+    // Smart Select is on but has not answered yet: prefer the installed and
+    // compatible model over a catalog default that may not be downloaded.
+    if (smartSelect && !recommendations) return pickModel(feature)
     const preferred = getDefaultModel(feature)
     if (preferred && getAvailableModels(feature).includes(preferred)) return preferred
     return pickModel(feature)
@@ -255,6 +272,8 @@ export function PipelineSidebar() {
           const step = steps.find(s => s.feature === feature)
           const isEnabled = !!step
           const isExpanded = expanded.has(section.key)
+          const recommendation = recommendationFor(feature)
+          const smartPicked = Boolean(recommendation && step?.model === recommendation.model)
           const schema = getParametersSchema(feature)
           const properties: Record<string, any> = schema?.properties || {}
           const paramEntries = Object.entries(properties)
@@ -291,6 +310,11 @@ export function PipelineSidebar() {
                   <div className="flex items-center gap-2 shrink-0">
                     {isEnabled && (
                       <Badge variant="success" size="sm" className="mr-1">ENABLED</Badge>
+                    )}
+                    {isEnabled && smartPicked && recommendation && (
+                      <span title={`Smart Select: ${recommendation.reason}`} className="mr-1">
+                        <Badge variant="info" size="sm">SMART</Badge>
+                      </span>
                     )}
                     {!isEnabled && downloadedCount > 0 && (
                       <Badge variant="outline" size="sm" className="mr-1">AVAILABLE</Badge>
@@ -358,6 +382,20 @@ export function PipelineSidebar() {
                         placeholder="Select model"
                         className="model-selector-compact"
                       />
+                      {smartPicked && recommendation && (
+                        <p className="text-[11px] text-[var(--color-text-muted)]">
+                          Smart Select: {recommendation.reason}
+                        </p>
+                      )}
+                      {recommendation?.hint && (
+                        <p className="text-[11px] text-[var(--color-warning)] flex items-start gap-1">
+                          <span>⚠</span>
+                          <span>
+                            {recommendation.hint}{' '}
+                            <a href="/models" className="underline hover:text-[var(--color-accent)]">Models page</a>
+                          </span>
+                        </p>
+                      )}
                       {downloadedCount === 0 && availableModels.length > 0 && (
                         <p className="text-[11px] text-[var(--color-warning)] flex items-center gap-1">
                           <span>⚠</span> No models downloaded.{' '}

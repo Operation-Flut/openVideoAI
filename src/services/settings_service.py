@@ -253,6 +253,20 @@ def experimental_features_enabled() -> bool:
         return False
 
 
+def smart_select_enabled() -> bool:
+    """Whether the user asked for automatic model choice (Settings -> Models).
+
+    Read at request time so toggling the setting takes effect immediately. It is
+    reported by ``GET /models/recommendations`` and used by the Enhancement
+    sidebar to decide whether to apply the recommendation.
+    """
+    try:
+        return bool(get_settings_service().get_settings().models.smart_select)
+    except Exception:
+        logger.debug("Could not read smart_select setting", exc_info=True)
+        return False
+
+
 def configured_compute_device() -> str:
     """The compute backend chosen in Settings, as a torch device string.
 
