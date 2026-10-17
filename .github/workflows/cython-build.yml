@@ -139,19 +139,19 @@ jobs:
               pip install -r requirements-amd.txt
               ;;
             linux-rocm)
-              # Pin to specific versions known to have ROCm 6.4 / HIP support for Python 3.12
-              pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/rocm6.4
+              # Use latest from ROCm 6.4 index (2.5.1 lacks ROCm 6.4 / HIP support)
+              pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/rocm6.4
               ;;
             linux-xpu)
-              # Pin to specific versions known to have XPU support for Python 3.12
-              pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/xpu
+              # Use latest from XPU index
+              pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/xpu
               ;;
             macos-metal)
               # Install PyTorch with MPS support (comes by default on macOS)
               pip install torch==2.5.1 torchvision==0.20.1
               ;;
             windows-cuda|linux-cuda)
-              # Pin to specific versions known to have CUDA 12.8 support for Python 3.12
+              # Pin to specific version known to have CUDA 12.8 support for Python 3.12
               pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu128
               ;;
             *)
