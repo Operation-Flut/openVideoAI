@@ -1,4 +1,4 @@
-name: Experimental Cython Build
+name: Experimental Multi-Backend Cython Builds
 
 on:
   workflow_dispatch:
@@ -34,18 +34,38 @@ on:
 
 jobs:
   cython-build:
-    name: Cython Build (${{ github.event.inputs.python-version }}, ${{ github.event.inputs.build-mode }})
-    runs-on: ubuntu-latest
+    name: Cython Build (${{ matrix.target }}, Python ${{ github.event.inputs.python-version }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-cuda
+            runner: windows-latest
+          - target: windows-directml
+            runner: windows-latest
+          - target: linux-cuda
+            runner: ubuntu-24.04
+          - target: linux-rocm
+            runner: ubuntu-24.04
+          - target: linux-xpu
+            runner: ubuntu-24.04
+          - target: macos-metal
+            runner: macos-14
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     permissions:
       contents: read
       actions: read
+    defaults:
+      run:
+        shell: bash
 
     env:
       PYTHON_VERSION: ${{ github.event.inputs.python-version }}
       BUILD_MODE: ${{ github.event.inputs.build-mode }}
       CYTHON_COMPILE_ALL: ${{ github.event.inputs.cython-compile-all }}
       UPLOAD_ARTIFACTS: ${{ github.event.inputs.upload-artifacts }}
+      BUILD_TARGET: ${{ matrix.target }}
 
     steps:
       - name: Checkout repository
@@ -65,6 +85,7 @@ jobs:
             pyproject.toml
 
       - name: Install system dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends \
@@ -92,6 +113,7 @@ jobs:
           ccache --version
 
       - name: Configure ccache
+        if: runner.os == 'Linux'
         run: |
           ccache --max-size=2G
           ccache --set-config=compression=true
@@ -105,15 +127,60 @@ jobs:
           pip install --no-build-isolation meson-python meson ninja
           pip install pybind11
 
-      - name: Install PyTorch (CPU for build)
-        run: |
-          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
       - name: Install project dependencies
         run: |
           pip install -r requirements.txt
-          pip install -r requirements-amd.txt 2>/dev/null || true
-          pip install cython mypyc nuitka pyinstaller
+          pip install cython mypy nuitka pyinstaller
+
+      - name: Install target PyTorch backend
+        run: |
+          case "${BUILD_TARGET}" in
+            windows-directml)
+              pip install -r requirements-amd.txt
+              ;;
+            linux-rocm)
+              pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm6.4
+              ;;
+            linux-xpu)
+              pip install torch torchvision --index-url https://download.pytorch.org/whl/xpu
+              ;;
+            macos-metal)
+              pip install --upgrade torch torchvision
+              ;;
+            windows-cuda|linux-cuda)
+              pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/cu128
+              ;;
+            *)
+              echo "Unsupported build target: ${BUILD_TARGET}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Verify target PyTorch backend
+        run: |
+          python - <<'PY'
+          import os
+          import platform
+          import torch
+
+          target = os.environ["BUILD_TARGET"]
+          if target.endswith("-cuda") and not torch.version.cuda:
+              raise SystemExit("CUDA target has a PyTorch build without CUDA support")
+          if target == "linux-rocm" and not torch.version.hip:
+              raise SystemExit("ROCm target has a PyTorch build without HIP support")
+          if target == "windows-directml":
+              import torch_directml
+              print(f"DirectML module loaded; devices reported: {torch_directml.device_count()}")
+          if target == "macos-metal":
+              if platform.machine() != "arm64":
+                  raise SystemExit("Metal target requires an Apple Silicon runner")
+              if not torch.backends.mps.is_built():
+                  raise SystemExit("PyTorch was not built with Metal/MPS support")
+          if target == "linux-xpu" and not getattr(torch.version, "xpu", None):
+              raise SystemExit("PyTorch build does not include Intel XPU support")
+
+          print(f"PyTorch {torch.__version__} backend check passed for {target}")
+          PY
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -219,16 +286,21 @@ jobs:
               def build_extensions(self):
                   # Add optimization flags
                   for ext in self.extensions:
-                      ext.extra_compile_args = [
-                          "-O3",
-                          "-march=native",
-                          "-mtune=native",
-                          "-ffast-math",
-                          "-funroll-loops",
-                          "-fomit-frame-pointer",
-                          "-pipe",
-                      ]
-                      ext.extra_link_args = ["-s", "-Wl,-O1"]
+                      if os.name == "nt":
+                          ext.extra_compile_args = ["/O2"]
+                          ext.extra_link_args = []
+                      elif sys.platform == "darwin":
+                          ext.extra_compile_args = ["-O3", "-pipe"]
+                          ext.extra_link_args = []
+                      else:
+                          ext.extra_compile_args = [
+                              "-O3",
+                              "-ffast-math",
+                              "-funroll-loops",
+                              "-fomit-frame-pointer",
+                              "-pipe",
+                          ]
+                          ext.extra_link_args = ["-s", "-Wl,-O1"]
                   super().build_extensions()
 
           setup(
@@ -287,13 +359,18 @@ jobs:
       - name: Build binary with PyInstaller
         id: pyinstaller
         run: |
-          set -euo pipefail
-
           # Create PyInstaller spec dynamically
           cat > openvideoai.spec << 'EOF'
           # -*- mode: python ; coding: utf-8 -*-
+          import os
+          import sys
 
           block_cipher = None
+          backend_hiddenimports = (
+              ['torch_directml']
+              if os.environ.get('BUILD_TARGET') == 'windows-directml'
+              else []
+          )
 
           a = Analysis(
               ['main.py'],
@@ -358,6 +435,7 @@ jobs:
                   'torch._C',
                   'torchvision._C',
                   'cv2',
+                  *backend_hiddenimports,
               ],
               hookspath=[],
               hooksconfig={},
@@ -401,8 +479,8 @@ jobs:
               name='openVideoAI',
               debug=False,
               bootloader_ignore_signals=False,
-              strip=True,
-              upx=True,
+              strip=sys.platform != 'win32',
+              upx=False,
               upx_exclude=[],
               runtime_tmpdir=None,
               console=False,
@@ -411,7 +489,11 @@ jobs:
               target_arch=None,
               codesign_identity=None,
               entitlements_file=None,
-              icon='assets/icon/black_glass.ico' if os.path.exists('assets/icon/black_glass.ico') else None,
+              icon=(
+                  'assets/icon/black_glass.ico'
+                  if sys.platform == 'win32' and os.path.exists('assets/icon/black_glass.ico')
+                  else None
+              ),
           )
 
           coll = COLLECT(
@@ -420,7 +502,7 @@ jobs:
               a.zipfiles,
               a.datas,
               strip=False,
-              upx=True,
+              upx=False,
               upx_exclude=[],
               name='openVideoAI',
           )
@@ -430,35 +512,68 @@ jobs:
           python -m PyInstaller --clean --noconfirm openvideoai.spec
 
           # Verify binary
-          if [ -f "dist/openVideoAI/openVideoAI" ] || [ -f "dist/openVideoAI.exe" ]; then
-            echo "Binary built successfully!"
-            ls -lh dist/
-          else
-            echo "ERROR: Binary not found!"
-            find dist -type f -name "openVideoAI*" 2>/dev/null
-            exit 1
-          fi
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          binary = Path("dist/openVideoAI/openVideoAI.exe" if os.name == "nt"
+                        else "dist/openVideoAI/openVideoAI")
+          if not binary.is_file():
+              raise SystemExit(f"PyInstaller output not found: {binary}")
+          print(f"Binary built successfully: {binary}")
+          PY
 
       - name: Test binary
         run: |
-          # Quick smoke test
-          if [ -f "dist/openVideoAI/openVideoAI" ]; then
-            timeout 30 ./dist/openVideoAI/openVideoAI --mode server --port 18080 &
-            sleep 10
-            curl -f http://127.0.0.1:18080/api/health || exit 1
-            echo "Binary health check passed!"
-          elif [ -f "dist/openVideoAI.exe" ]; then
-            echo "Windows binary - skipping runtime test on Linux"
-          else
-            echo "ERROR: Binary not found"
-            exit 1
-          fi
+          python - <<'PY'
+          import os
+          import subprocess
+          import sys
+          import time
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          binary = Path("dist/openVideoAI/openVideoAI.exe" if os.name == "nt"
+                        else "dist/openVideoAI/openVideoAI")
+          if not binary.is_file():
+              raise SystemExit(f"Build output not found: {binary}")
+
+          process = subprocess.Popen(
+              [str(binary.resolve()), "--mode", "server", "--port", "18080"],
+              stdout=subprocess.DEVNULL,
+              stderr=subprocess.DEVNULL,
+          )
+          try:
+              deadline = time.monotonic() + 30
+              while time.monotonic() < deadline:
+                  if process.poll() is not None:
+                      raise SystemExit(f"Packaged app exited with code {process.returncode}")
+                  try:
+                      with urllib.request.urlopen(
+                          "http://127.0.0.1:18080/api/health", timeout=1
+                      ) as response:
+                          if response.status == 200:
+                              print("Binary health check passed!")
+                              break
+                  except (urllib.error.URLError, TimeoutError):
+                      time.sleep(0.5)
+              else:
+                  raise SystemExit("Packaged app did not become healthy within 30 seconds")
+          finally:
+              process.terminate()
+              try:
+                  process.wait(timeout=10)
+              except subprocess.TimeoutExpired:
+                  process.kill()
+                  process.wait()
+          PY
 
       - name: Upload binary artifacts
         if: ${{ env.UPLOAD_ARTIFACTS == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: openvideoai-cython-${{ env.BUILD_MODE }}-${{ runner.os }}-py${{ env.PYTHON_VERSION }}
+          name: openvideoai-cython-${{ env.BUILD_MODE }}-${{ env.BUILD_TARGET }}-py${{ env.PYTHON_VERSION }}
           path: |
             dist/openVideoAI/
             dist/openVideoAI.exe
@@ -469,7 +584,7 @@ jobs:
         if: ${{ env.UPLOAD_ARTIFACTS == 'true' && env.CYTHON_COMPILE_ALL == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: openvideoai-cythonized-src-${{ runner.os }}-py${{ env.PYTHON_VERSION }}
+          name: openvideoai-cythonized-src-${{ env.BUILD_TARGET }}-py${{ env.PYTHON_VERSION }}
           path: |
             src/**/*.so
             src/**/*.pyd
@@ -481,7 +596,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cython-build-logs-${{ github.run_id }}
+          name: cython-build-logs-${{ github.run_id }}-${{ env.BUILD_TARGET }}
           path: |
             *.log
             build/
@@ -497,16 +612,12 @@ jobs:
           echo "| Python | ${{ env.PYTHON_VERSION }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build Mode | ${{ env.BUILD_MODE }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Cython Compile All | ${{ env.CYTHON_COMPILE_ALL }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Target | ${{ env.BUILD_TARGET }} |" >> $GITHUB_STEP_SUMMARY
           echo "| OS | ${{ runner.os }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ -f "dist/openVideoAI/openVideoAI" ]; then
-            SIZE=$(du -h dist/openVideoAI/openVideoAI | cut -f1)
-            echo "| Binary Size | $SIZE |" >> $GITHUB_STEP_SUMMARY
-          elif [ -f "dist/openVideoAI.exe" ]; then
-            SIZE=$(du -h dist/openVideoAI.exe | cut -f1)
-            echo "| Binary Size | $SIZE |" >> $GITHUB_STEP_SUMMARY
-          fi
+          SIZE=$(python -c 'from pathlib import Path; total=sum(p.stat().st_size for p in Path("dist/openVideoAI").rglob("*") if p.is_file()); print(f"{total / (1024**3):.2f} GiB")')
+          echo "| Bundle Size | $SIZE |" >> $GITHUB_STEP_SUMMARY
 
           # Count compiled modules
           SO_COUNT=$(find . -name "*.so" -o -name "*.pyd" 2>/dev/null | wc -l)
@@ -514,7 +625,7 @@ jobs:
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- Binary: \`dist/openVideoAI/\` or \`dist/openVideoAI.exe\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Binary bundle: \`dist/openVideoAI/\`" >> $GITHUB_STEP_SUMMARY
           if [ "${{ env.CYTHON_COMPILE_ALL }}" = "true" ]; then
             echo "- Cythonized sources: \`src/**/*.so\`, \`src/**/*.pyd\`" >> $GITHUB_STEP_SUMMARY
           fi
