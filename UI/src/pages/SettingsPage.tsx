@@ -17,16 +17,6 @@ const THEME_OPTIONS = [
   { value: 'system', label: 'System', icon: Monitor },
 ] as const
 
-const COMPUTE_BACKEND_OPTIONS: { value: ComputeBackend; label: string }[] = [
-  { value: 'auto', label: 'Auto' },
-  { value: 'cuda', label: 'NVIDIA CUDA' },
-  { value: 'amd', label: 'AMD' },
-  { value: 'hip', label: 'AMD ROCm' },
-  { value: 'dml', label: 'DirectML' },
-  { value: 'metal', label: 'Metal' },
-  { value: 'cpu', label: 'CPU' },
-]
-
 const OUTPUT_FORMAT_OPTIONS: { value: OutputFormat; label: string }[] = [
   { value: 'mp4', label: 'MP4 (H.264)' },
   { value: 'jpg', label: 'JPG' },
@@ -74,6 +64,30 @@ export function SettingsPage() {
   }
 
   const settings = settingsResponse.settings
+
+  // The backend lists which compute backends this machine can actually use
+  // (models.json-style single source of truth on the server). Only those are
+  // selectable; a saved value that is not available here stays visible but
+  // disabled, so importing settings from another machine never silently
+  // rewrites the user's choice.
+  const currentBackend = settings.gpu.compute_backend
+  const backends = settingsResponse.available_backends ?? []
+  const backendOptions = [
+    // Defensive: never leave the select without its current value.
+    ...(backends.some((backend) => backend.value === currentBackend)
+      ? []
+      : [{ value: currentBackend, label: currentBackend, disabled: false }]),
+    ...backends
+      .filter((backend) => backend.available || backend.value === currentBackend)
+      .map((backend) => ({
+        value: backend.value,
+        label: backend.recommended ? `${backend.label} — detected` : backend.label,
+        disabled: !backend.available,
+      })),
+  ]
+  const unavailableBackend = backends.find(
+    (backend) => backend.value === currentBackend && !backend.available,
+  )
 
   const handleUpdate = async (updates: Partial<SettingsModel>) => {
     await updateMutation.mutateAsync(updates)
@@ -151,13 +165,23 @@ export function SettingsPage() {
           )}
 
           {activeTab === 'gpu' && (
-            <Section title="GPU Acceleration" description="Configure the GPU computation backend">
+            <Section
+              title="GPU Acceleration"
+              description="Only compute backends detected on this machine can be selected"
+            >
               <Field label="Compute Backend">
                 <Select
                   value={settings.gpu.compute_backend}
                   onChange={(e) => handleUpdate({ gpu: { ...settings.gpu, compute_backend: e.target.value as ComputeBackend } })}
-                  options={COMPUTE_BACKEND_OPTIONS}
+                  options={backendOptions}
                 />
+                {unavailableBackend && (
+                  <p className="mt-1.5 text-[12px] text-amber-400/90">
+                    {unavailableBackend.label} is not available on this machine
+                    {unavailableBackend.reason ? ` (${unavailableBackend.reason})` : ''}.
+                    {' '}Auto uses the best detected backend.
+                  </p>
+                )}
               </Field>
               <Divider />
               <Toggle

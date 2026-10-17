@@ -236,9 +236,19 @@ export interface AdvancedSettings {
   experimental_features: boolean
 }
 
+export interface ComputeBackendInfo {
+  value: ComputeBackend
+  label: string
+  available: boolean
+  recommended: boolean
+  reason: string | null
+}
+
 export interface SettingsResponse {
   settings: SettingsModel
   max_values: Record<string, any>
+  /** Machine-derived: the compute backends this install can actually use. */
+  available_backends: ComputeBackendInfo[]
 }
 
 export interface HealthResponse {

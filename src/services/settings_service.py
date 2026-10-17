@@ -9,6 +9,7 @@ from threading import Lock
 
 from ..core.config import read_saved_settings, write_saved_settings, DEFAULT_SETTINGS, MAX_SETTINGS, SETTINGS_FILE
 from ..api.schemas import SettingsModel, SettingsResponse
+from ..utils.system_resources import get_available_devices, BACKEND_DEVICE_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -250,3 +251,40 @@ def experimental_features_enabled() -> bool:
     except Exception:
         logger.debug("Could not read experimental_features setting", exc_info=True)
         return False
+
+
+def configured_compute_device() -> str:
+    """The compute backend chosen in Settings, as a torch device string.
+
+    ``auto`` is passed through so the pipeline resolves it to the best backend
+    this machine has. Anything else is only returned when the device actually
+    exists here; an unavailable choice (a settings file copied from another
+    machine, or a GPU that has since disappeared) falls back to ``auto`` rather
+    than handing torch a device type it would fail on.
+    """
+    try:
+        raw = get_settings_service().get_setting("gpu.compute_backend") or "auto"
+    except Exception:
+        logger.debug("Could not read compute_backend setting", exc_info=True)
+        return "auto"
+
+    # get_setting returns the pydantic enum, whose str() is "ComputeBackend.DML".
+    backend = str(getattr(raw, "value", raw)).strip().lower()
+    if backend in ("", "auto"):
+        return "auto"
+
+    # "amd" predates the HIP/DirectML split; resolve it to whichever is usable.
+    if backend == "amd":
+        available = set(get_available_devices())
+        backend = "hip" if "hip" in available else "dml"
+
+    device_type = BACKEND_DEVICE_TYPES.get(backend)
+    if not device_type or device_type == "auto":
+        return "auto"
+    if device_type == "cpu" or device_type in get_available_devices():
+        return device_type
+    logger.info(
+        "Configured compute backend %r is not available on this machine; using auto",
+        backend,
+    )
+    return "auto"

@@ -204,5 +204,135 @@ class SettingsRouteTests(_ServiceTestCase):
         self.assertEqual(context.exception.status_code, 400)
 
 
+class ComputeBackendTests(_ServiceTestCase):
+    """The Compute Backend picker only offers backends this machine can run."""
+
+    CPU_ONLY = {
+        "has_cuda": False, "has_hip": False, "has_dml": False,
+        "has_metal": False, "best_backend": "cpu",
+    }
+    AMD_DIRECTML = {
+        "has_cuda": False, "has_hip": False, "has_dml": True,
+        "has_metal": False, "best_backend": "dml",
+    }
+
+    def _backends(self, capabilities):
+        from src.utils.system_resources import get_available_compute_backends
+
+        with patch(
+            "src.utils.system_resources.get_platform_capabilities",
+            return_value=dict(capabilities),
+        ):
+            return {backend["value"]: backend for backend in get_available_compute_backends()}
+
+    def test_unavailable_backends_are_not_selectable(self):
+        backends = self._backends(self.CPU_ONLY)
+
+        # Auto and CPU always work; every GPU backend is flagged with a reason.
+        self.assertTrue(backends["auto"]["available"])
+        self.assertTrue(backends["cpu"]["available"])
+        for value in ("cuda", "hip", "dml", "metal"):
+            with self.subTest(backend=value):
+                self.assertFalse(backends[value]["available"])
+                self.assertIsNotNone(backends[value]["reason"])
+
+    def test_only_detected_hardware_is_marked_available(self):
+        backends = self._backends(self.AMD_DIRECTML)
+
+        self.assertTrue(backends["dml"]["available"])
+        self.assertIsNone(backends["dml"]["reason"])
+        self.assertTrue(backends["dml"]["recommended"])
+        self.assertFalse(backends["cuda"]["available"])
+        self.assertFalse(backends["metal"]["available"])
+        # Auto advertises what it would resolve to, computed by the backend.
+        self.assertIn("DirectML", backends["auto"]["label"])
+
+    def test_settings_route_reports_available_backends(self):
+        response = asyncio.run(settings_routes.get_settings(settings_service=self.service))
+
+        values = {backend.value for backend in response.available_backends}
+        self.assertTrue({"auto", "cpu"}.issubset(values))
+        for backend in response.available_backends:
+            if not backend.available:
+                self.assertIsNotNone(backend.reason)
+
+    def _resolved_device(self, backend, available=("dml", "cpu")):
+        from src.services.settings_service import configured_compute_device
+
+        self.service.set_setting("gpu.compute_backend", backend)
+        with patch(
+            "src.services.settings_service.get_available_devices",
+            return_value=list(available),
+        ), patch(
+            "src.services.settings_service.get_settings_service",
+            return_value=self.service,
+        ):
+            return configured_compute_device()
+
+    def test_configured_device_resolves_only_usable_backends(self):
+        self.assertEqual(self._resolved_device("auto"), "auto")
+        self.assertEqual(self._resolved_device("dml"), "dml")
+        self.assertEqual(self._resolved_device("cpu"), "cpu")
+        # Not present on this machine -> the pipeline decides, torch never sees it.
+        self.assertEqual(self._resolved_device("cuda"), "auto")
+        self.assertEqual(self._resolved_device("hip"), "auto")
+        self.assertEqual(self._resolved_device("metal"), "auto")
+
+    def test_legacy_amd_backend_maps_onto_hip_or_directml(self):
+        self.assertEqual(self._resolved_device("amd", ("dml", "cpu")), "dml")
+        self.assertEqual(self._resolved_device("amd", ("hip", "cpu")), "hip")
+
+    def test_unavailable_choice_is_not_rewritten_in_the_settings(self):
+        # Falling back at runtime must not silently change the stored value; the
+        # UI shows it as disabled instead so the user can see the mismatch.
+        self._resolved_device("cuda")
+        self.assertEqual(self.service.get_setting("gpu.compute_backend").value, "cuda")
+
+
+class ComputeBackendWiringTests(unittest.TestCase):
+    """The Compute Backend setting reaches the pipelines instead of being decorative."""
+
+    def _device_used(self, parameters, configured):
+        from src.api.schemas import PipelineStep
+        from src.services.processing_service import ProcessingService
+
+        recorded = {}
+
+        class FakePipeline:
+            def load_model(self, path):
+                return True
+
+        def fake_instantiate(pipeline_class, model_name=None, device="auto",
+                             parameters=None, task_id=None):
+            recorded["device"] = device
+            return FakePipeline()
+
+        service = ProcessingService()
+        steps = [PipelineStep(feature="Upscale", model="Real-ESRGAN", parameters=parameters)]
+        with patch("src.services.processing_service.instantiate_pipeline",
+                   side_effect=fake_instantiate), \
+             patch("src.services.processing_service.configured_compute_device",
+                   return_value=configured), \
+             patch("src.services.settings_service.experimental_features_enabled",
+                   return_value=False), \
+             patch.object(service._model_registry, "get_all_model_paths",
+                          return_value={"main": self._tmp_pth}):
+            service._build_chain_from_steps(steps, "task1")
+        return recorded["device"]
+
+    def setUp(self):
+        self._tmp_pth = str(Path("models") / "fake.pth")
+
+    def test_step_device_wins_over_the_setting(self):
+        self.assertEqual(
+            self._device_used({"scale": 4, "device": "cuda"}, configured="cpu"),
+            "cuda",
+        )
+
+    def test_setting_is_used_when_the_step_does_not_specify_a_device(self):
+        self.assertEqual(self._device_used({"scale": 4}, configured="cpu"), "cpu")
+        self.assertEqual(self._device_used({"scale": 4}, configured="auto"), "auto")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -26,6 +26,7 @@ from ..processing.pipeline.base import (
 )
 from ..processing.pipeline.registry import get_pipeline_registry, instantiate_pipeline
 from ..models.registry import get_registry
+from ..services.settings_service import configured_compute_device
 from ..core.paths import temp_processing_dir, exports_dir
 from ..events.bus import EventBus, EventType, ProcessingProgressEvent, get_event_bus
 from ..api.schemas import ProcessRequest, PipelineStep, TaskStatus, ProcessingTask, ProcessResponse, TaskStatusResponse
@@ -380,7 +381,9 @@ class ProcessingService:
             # Create pipeline instance
             pipeline = instantiate_pipeline(pipeline_class,
                 model_name=model_name,
-                device=step.parameters.get("device", "auto"),
+                # An explicit per-step device wins; otherwise honour the backend
+                # chosen in Settings (Settings -> GPU -> Compute Backend).
+                device=step.parameters.get("device") or configured_compute_device(),
                 parameters=step.parameters,
                 task_id=f"{task_id}_step{i}",
             )
@@ -457,7 +460,9 @@ class ProcessingService:
 
             pipeline = instantiate_pipeline(pipeline_class,
                 model_name=model_name,
-                device=params.device if hasattr(params, "device") else params.get("device", "auto"),
+                device=(
+                    params.device if hasattr(params, "device") else params.get("device")
+                ) or configured_compute_device(),
                 parameters=param_dict,
                 task_id=f"{task_id}_step{i}",
             )

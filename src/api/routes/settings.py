@@ -11,6 +11,7 @@ import tempfile
 from ...api.schemas import SettingsModel, SettingsResponse, ErrorResponse
 from ...api.dependencies import get_settings_service
 from ...services.settings_service import SettingsService
+from ...utils.system_resources import get_available_compute_backends
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -22,7 +23,11 @@ async def get_settings(
     """Get current application settings."""
     settings = settings_service.get_settings()
     max_settings = settings_service.get_max_settings()
-    return SettingsResponse(settings=settings, max_values=max_settings)
+    return SettingsResponse(
+        settings=settings,
+        max_values=max_settings,
+        available_backends=get_available_compute_backends(),
+    )
 
 
 @router.patch("", response_model=SettingsModel)

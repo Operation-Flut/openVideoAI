@@ -326,9 +326,20 @@ class SettingsModel(BaseModel):
     advanced: AdvancedSettings = Field(default_factory=AdvancedSettings)
 
 
+class ComputeBackendInfo(BaseModel):
+    """A compute backend the Settings UI can offer for this machine."""
+    value: ComputeBackend
+    label: str
+    available: bool = True
+    recommended: bool = False
+    reason: Optional[str] = None
+
+
 class SettingsResponse(BaseModel):
     settings: SettingsModel
     max_values: Dict[str, Any] = {}
+    # Machine-derived: which compute backends this install can actually use.
+    available_backends: List[ComputeBackendInfo] = []
 
 
 # Feature Schemas

@@ -228,6 +228,66 @@ def get_available_devices() -> List[str]:
     return devices
 
 
+# Compute backends offered in Settings. `auto` and `cpu` are always usable; the
+# GPU entries are only marked available when this machine can actually run them,
+# so the UI never offers a backend that would silently fall back to something
+# else. Labels live here rather than in the UI for the same reason the model
+# catalog does: one source of truth.
+_COMPUTE_BACKENDS: Tuple[Tuple[str, str, Optional[str]], ...] = (
+    ("auto", "Auto", None),
+    ("cuda", "NVIDIA CUDA", "has_cuda"),
+    ("hip", "AMD ROCm (HIP)", "has_hip"),
+    ("dml", "AMD / Intel DirectML", "has_dml"),
+    ("metal", "Apple Metal (MPS)", "has_metal"),
+    ("cpu", "CPU", None),
+)
+
+_COMPUTE_BACKEND_LABELS = {value: label for value, label, _ in _COMPUTE_BACKENDS}
+
+_UNAVAILABLE_REASONS = {
+    "cuda": "No CUDA-capable GPU detected",
+    "hip": "No ROCm (HIP) capable GPU detected",
+    "dml": "DirectML is not available on this machine",
+    "metal": "No Apple Silicon (Metal) GPU detected",
+}
+
+# The settings spelling of a backend -> the torch device type it resolves to.
+BACKEND_DEVICE_TYPES = {
+    "auto": "auto",
+    "cuda": "cuda",
+    "hip": "hip",
+    "dml": "dml",
+    "metal": "mps",
+    "cpu": "cpu",
+}
+
+
+def get_available_compute_backends() -> List[Dict[str, Any]]:
+    """
+    The compute backends this machine can actually use, best first.
+
+    ``available`` is what the Settings UI uses to decide whether an entry is
+    selectable. ``reason`` explains the ones that are not, and ``recommended``
+    marks the entry ``auto`` resolves to, so the UI can label it without
+    duplicating the detection rules.
+    """
+    caps = get_platform_capabilities()
+    best = caps["best_backend"]
+    auto_label = f"Auto ({_COMPUTE_BACKEND_LABELS.get(best, 'CPU')})"
+
+    backends: List[Dict[str, Any]] = []
+    for value, label, capability in _COMPUTE_BACKENDS:
+        available = True if capability is None else bool(caps.get(capability))
+        backends.append({
+            "value": value,
+            "label": auto_label if value == "auto" else label,
+            "available": available,
+            "recommended": value == best,
+            "reason": None if available else _UNAVAILABLE_REASONS.get(value),
+        })
+    return backends
+
+
 def recommended_tile_size(vram_gb: int) -> int:
     """
     Pick a Real-ESRGAN tile size that keeps GPU utilization high while still
