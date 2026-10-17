@@ -470,12 +470,12 @@ jobs:
               pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu128
               ;;
             rocm)
-              # Pin to specific version known to have ROCm 6.4 / HIP support for Python 3.12
-              pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/rocm6.4
+              # Use latest from ROCm 6.4 index (2.5.1 lacks ROCm 6.4 support)
+              pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/rocm6.4
               ;;
             xpu)
-              # Pin to specific version known to have XPU support for Python 3.12
-              pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/xpu
+              # Use latest from XPU index
+              pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/xpu
               ;;
           esac
 
