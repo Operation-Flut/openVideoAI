@@ -32,7 +32,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     },
     # GPU Acceleration
     "gpu": {
-        "compute_backend": "auto",  # auto, cuda, amd, hip, dml, metal, cpu
+        "compute_backend": "auto",  # auto, cuda, amd, hip, xpu, dml, metal, cpu
         "gpu_device": "auto",
         "fp16_enabled": True,
         "tensorrt_enabled": False,

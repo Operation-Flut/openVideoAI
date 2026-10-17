@@ -170,12 +170,17 @@ jobs:
   # Windows build - PyInstaller exe + WiX MSI installer
   # =============================================================================
   build-windows:
-    name: Build Windows
+    name: Build Windows (${{ matrix.backend }})
     needs: release-info
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [cuda, directml]
     runs-on: windows-latest
     timeout-minutes: 90
     env:
       RELEASE_WINDOWS_VERSION: ${{ needs.release-info.outputs.windows_version }}
+      WINDOWS_BACKEND: ${{ matrix.backend }}
 
     steps:
       - name: Check out repository
@@ -188,6 +193,7 @@ jobs:
           cache: pip
           cache-dependency-path: |
             requirements.txt
+            requirements-amd.txt
             pyproject.toml
 
       - name: Install Python dependencies
@@ -197,6 +203,20 @@ jobs:
           pip install -r requirements.txt
           # PyInstaller must be installed explicitly; it is not in requirements.txt
           pip install pyinstaller
+          if ($env:WINDOWS_BACKEND -eq "directml") {
+            pip install -r requirements-amd.txt
+          } else {
+            pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/cu128
+          }
+
+      - name: Verify Windows PyTorch backend
+        shell: pwsh
+        run: |
+          if ($env:WINDOWS_BACKEND -eq "directml") {
+            python -c "import torch_directml; print(f'DirectML package loaded; devices: {torch_directml.device_count()}')"
+          } else {
+            python -c "import torch; assert torch.version.cuda, 'CUDA-enabled PyTorch was not installed'; print(f'CUDA PyTorch {torch.__version__} ({torch.version.cuda})')"
+          }
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -216,6 +236,10 @@ jobs:
       - name: Build executable with PyInstaller (--onedir for MSI)
         shell: pwsh
         run: |
+          $backendArgs = @()
+          if ($env:WINDOWS_BACKEND -eq "directml") {
+            $backendArgs += @("--collect-all", "torch_directml", "--hidden-import", "torch_directml")
+          }
           pyinstaller `
             --noconfirm `
             --clean `
@@ -232,6 +256,7 @@ jobs:
             --hidden-import webview `
             --hidden-import webview.platforms.winforms `
             --hidden-import clr `
+            @backendArgs `
             main.py
 
       - name: Verify onedir build exists
@@ -267,6 +292,10 @@ jobs:
       - name: Build portable executable (--onefile)
         shell: pwsh
         run: |
+          $backendArgs = @()
+          if ($env:WINDOWS_BACKEND -eq "directml") {
+            $backendArgs += @("--collect-all", "torch_directml", "--hidden-import", "torch_directml")
+          }
           pyinstaller `
             --noconfirm `
             --clean `
@@ -284,6 +313,7 @@ jobs:
             --hidden-import webview `
             --hidden-import webview.platforms.winforms `
             --hidden-import clr `
+            @backendArgs `
             main.py
 
       - name: Verify portable executable exists
@@ -299,8 +329,9 @@ jobs:
       - name: Package portable ZIP
         shell: pwsh
         run: |
+          $backendSuffix = if ($env:WINDOWS_BACKEND -eq "cuda") { "" } else { "-$env:WINDOWS_BACKEND" }
           Compress-Archive -Path dist\openVideoAI-portable.exe `
-                           -DestinationPath openVideoAI-windows-x64-portable.zip `
+                           -DestinationPath "openVideoAI-windows-x64$backendSuffix-portable.zip" `
                            -Force
 
       - name: Install WiX Toolset 3
@@ -373,32 +404,39 @@ jobs:
       - name: Link WiX object (light)
         shell: pwsh
         run: |
+          $backendSuffix = if ($env:WINDOWS_BACKEND -eq "cuda") { "" } else { "-$env:WINDOWS_BACKEND" }
           # -sval skips ICE validation; per-user installs with harvested file
           # key paths (ICE38/ICE64) would otherwise fail the link step.
           light.exe `
             -sval `
-            -out openVideoAI-windows-x64.msi `
+            -out "openVideoAI-windows-x64$backendSuffix.msi" `
             build\wixobj\openVideoAI.wixobj build\wixobj\AppFiles.wixobj
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: openVideoAI-windows
+          name: openVideoAI-windows-${{ matrix.backend }}
           if-no-files-found: error
           retention-days: 7
           path: |
-            openVideoAI-windows-x64.msi
-            openVideoAI-windows-x64-portable.zip
+            openVideoAI-windows-x64*.msi
+            openVideoAI-windows-x64*-portable.zip
 
   # =============================================================================
   # Linux build
   # =============================================================================
   build-linux:
-    name: Build Linux
+    name: Build Linux (${{ matrix.backend }})
     needs: release-info
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [cuda, rocm, xpu]
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
+    env:
+      LINUX_BACKEND: ${{ matrix.backend }}
 
     steps:
       - name: Check out repository
@@ -425,6 +463,33 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
+          case "${LINUX_BACKEND}" in
+            cuda)
+              pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/cu128
+              ;;
+            rocm)
+              pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/rocm6.4
+              ;;
+            xpu)
+              pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/xpu
+              ;;
+          esac
+
+      - name: Verify Linux PyTorch backend
+        run: |
+          python - <<'PY'
+          import os
+          import torch
+
+          backend = os.environ["LINUX_BACKEND"]
+          if backend == "cuda" and not torch.version.cuda:
+              raise SystemExit("CUDA-enabled PyTorch was not installed")
+          if backend == "rocm" and not torch.version.hip:
+              raise SystemExit("ROCm-enabled PyTorch was not installed")
+          if backend == "xpu" and not getattr(torch.version, "xpu", None):
+              raise SystemExit("Intel XPU-enabled PyTorch was not installed")
+          print(f"PyTorch {torch.__version__} backend check passed for {backend}")
+          PY
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -459,33 +524,41 @@ jobs:
             main.py
 
       - name: Package tarball
-        run: tar -czf openVideoAI-linux-x64.tar.gz -C dist openVideoAI
+        run: |
+          suffix="-$LINUX_BACKEND"
+          if [[ "$LINUX_BACKEND" == "cuda" ]]; then
+            suffix=""
+          fi
+          archive="openVideoAI-linux-x64${suffix}.tar.gz"
+          tar -czf "$archive" -C dist openVideoAI
 
       - name: Split tarball for GitHub release limits
         run: |
           # GitHub Releases reject any single asset >= 2 GiB (2147483648 bytes).
-          # The Linux bundle carries the CUDA PyTorch runtime (~2.9 GiB), so split
-          # it into sub-2-GiB parts. Reassemble before extracting with:
-          #   cat openVideoAI-linux-x64.tar.gz.part-* > openVideoAI-linux-x64.tar.gz
-          #   tar -xzf openVideoAI-linux-x64.tar.gz
-          split -b 1900M openVideoAI-linux-x64.tar.gz openVideoAI-linux-x64.tar.gz.part-
-          ls -l openVideoAI-linux-x64.tar.gz.part-*
+          # Accelerator-enabled PyTorch bundles may exceed this limit.
+          suffix="-$LINUX_BACKEND"
+          if [[ "$LINUX_BACKEND" == "cuda" ]]; then
+            suffix=""
+          fi
+          archive="openVideoAI-linux-x64${suffix}.tar.gz"
+          split -b 1900M "$archive" "${archive}.part-"
+          ls -l "${archive}.part-"*
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: openVideoAI-linux
+          name: openVideoAI-linux-${{ matrix.backend }}
           if-no-files-found: error
           retention-days: 7
-          path: openVideoAI-linux-x64.tar.gz.part-*
+          path: openVideoAI-linux-x64*.tar.gz.part-*
 
   # =============================================================================
   # macOS build
   # =============================================================================
   build-macos:
-    name: Build macOS
+    name: Build macOS Apple Silicon (Metal)
     needs: release-info
-    runs-on: macos-latest
+    runs-on: macos-14
     timeout-minutes: 90
 
     steps:
@@ -506,6 +579,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
+          python - <<'PY'
+          import platform
+          import torch
+
+          if platform.machine() != "arm64":
+              raise SystemExit("Apple Silicon runner required for the Metal release build")
+          if not torch.backends.mps.is_built():
+              raise SystemExit("Installed PyTorch does not include Metal/MPS support")
+          print(f"PyTorch {torch.__version__} Metal/MPS build verified")
+          PY
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -554,7 +637,7 @@ jobs:
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: openVideoAI-macos
+          name: openVideoAI-macos-arm64-metal
           if-no-files-found: error
           retention-days: 7
           path: |
@@ -667,9 +750,9 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: |
-            release-artifacts/openVideoAI-windows-x64.msi
-            release-artifacts/openVideoAI-windows-x64-portable.zip
-            release-artifacts/openVideoAI-linux-x64.tar.gz.part-*
+            release-artifacts/openVideoAI-windows-x64*.msi
+            release-artifacts/openVideoAI-windows-x64*-portable.zip
+            release-artifacts/openVideoAI-linux-x64*.tar.gz.part-*
             release-artifacts/openVideoAI-macos.dmg
             release-artifacts/openVideoAI-macos.zip
             release-artifacts/*.sha256

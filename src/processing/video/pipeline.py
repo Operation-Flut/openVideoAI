@@ -99,7 +99,7 @@ class RealBasicVSRPipeline(EnhancementPipeline):
             self._model.eval()
             self._model.to(device_obj)
 
-            if self.fp16 and device_obj.type in ('cuda', 'hip', 'dml', 'privateuseone'):
+            if self.fp16 and device_obj.type in ('cuda', 'hip', 'xpu', 'dml', 'privateuseone'):
                 self._model.half()
 
             self._loaded = True
@@ -181,7 +181,7 @@ class RealBasicVSRPipeline(EnhancementPipeline):
 
                     # Stack: (1, T, C, H, W)
                     input_tensor = torch.stack(window_frames, dim=1).to(device)
-                    if self.fp16 and device.type in ('cuda', 'hip', 'dml', 'privateuseone'):
+                    if self.fp16 and device.type in ('cuda', 'hip', 'xpu', 'dml', 'privateuseone'):
                         input_tensor = input_tensor.half()
 
                     # Forward pass

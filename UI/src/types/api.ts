@@ -237,7 +237,7 @@ export interface GPUSettings {
   tensorrt_enabled: boolean
 }
 
-export type ComputeBackend = 'auto' | 'cuda' | 'amd' | 'hip' | 'dml' | 'metal' | 'cpu'
+export type ComputeBackend = 'auto' | 'cuda' | 'amd' | 'hip' | 'xpu' | 'dml' | 'metal' | 'cpu'
 
 export interface ExportSettings {
   default_upscale: number

@@ -83,6 +83,7 @@ def test_latest_pre_release_uses_first_prerelease(monkeypatch):
 
 def test_install_update_downloads_windows_asset(monkeypatch, tmp_path):
     monkeypatch.setattr(update, "get_os", lambda: "Windows")
+    monkeypatch.setattr(update, "_selected_backend", lambda: "cuda")
 
     def get_release(url: str) -> dict[str, list[dict[str, str]]]:
         assert url.endswith("/releases/tags/v1.0.0")
@@ -111,8 +112,43 @@ def test_install_update_downloads_windows_asset(monkeypatch, tmp_path):
     assert downloaded_path.read_bytes() == b"installer"
 
 
+def test_install_update_downloads_windows_directml_asset(monkeypatch, tmp_path):
+    monkeypatch.setattr(update, "get_os", lambda: "Windows")
+    monkeypatch.setattr(update, "_selected_backend", lambda: "directml")
+
+    def get_release(url: str) -> dict[str, list[dict[str, str]]]:
+        return {
+            "assets": [
+                {
+                    "name": "openVideoAI-windows-x64.msi",
+                    "browser_download_url": "https://example.test/cuda.msi",
+                },
+                {
+                    "name": "openVideoAI-windows-x64-directml.msi",
+                    "browser_download_url": "https://example.test/directml.msi",
+                },
+            ]
+        }
+
+    monkeypatch.setattr(update, "_get_json", get_release)
+    monkeypatch.setattr(update.tempfile, "gettempdir", lambda: str(tmp_path))
+
+    def write_asset(url: str, destination: Path) -> None:
+        assert url == "https://example.test/directml.msi"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"directml installer")
+
+    monkeypatch.setattr(update, "_download_asset", write_asset)
+
+    downloaded_path = update.install_update("v1.0.0")
+
+    assert downloaded_path.name == "openVideoAI-windows-x64-directml.msi"
+    assert downloaded_path.read_bytes() == b"directml installer"
+
+
 def test_install_update_joins_linux_release_parts(monkeypatch, tmp_path):
     monkeypatch.setattr(update, "get_os", lambda: "Linux")
+    monkeypatch.setattr(update, "_selected_backend", lambda: "cuda")
 
     def get_release(url: str) -> dict[str, list[dict[str, str]]]:
         assert url.endswith("/releases/tags/v1.0.0")
@@ -145,6 +181,47 @@ def test_install_update_joins_linux_release_parts(monkeypatch, tmp_path):
     downloaded_path = update.install_update("v1.0.0")
 
     assert downloaded_path.name == "openVideoAI-linux-x64.tar.gz"
+    assert downloaded_path.read_bytes() == b"aaab"
+
+
+def test_install_update_joins_linux_xpu_release_parts(monkeypatch, tmp_path):
+    monkeypatch.setattr(update, "get_os", lambda: "Linux")
+    monkeypatch.setattr(update, "_selected_backend", lambda: "xpu")
+
+    def get_release(url: str) -> dict[str, list[dict[str, str]]]:
+        return {
+            "assets": [
+                {
+                    "name": "openVideoAI-linux-x64-xpu.tar.gz.part-aa",
+                    "browser_download_url": "https://example.test/xpu-aa",
+                },
+                {
+                    "name": "openVideoAI-linux-x64-xpu.tar.gz.part-ab",
+                    "browser_download_url": "https://example.test/xpu-ab",
+                },
+                {
+                    "name": "openVideoAI-linux-x64-rocm.tar.gz.part-aa",
+                    "browser_download_url": "https://example.test/rocm-aa",
+                },
+            ]
+        }
+
+    monkeypatch.setattr(update, "_get_json", get_release)
+    monkeypatch.setattr(update.tempfile, "gettempdir", lambda: str(tmp_path))
+
+    def write_asset(url: str, destination: Path) -> None:
+        assert url in {
+            "https://example.test/xpu-aa",
+            "https://example.test/xpu-ab",
+        }
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(url[-2:].encode())
+
+    monkeypatch.setattr(update, "_download_asset", write_asset)
+
+    downloaded_path = update.install_update("v1.0.0")
+
+    assert downloaded_path.name == "openVideoAI-linux-x64-xpu.tar.gz"
     assert downloaded_path.read_bytes() == b"aaab"
 
 

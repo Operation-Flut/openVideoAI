@@ -84,6 +84,15 @@ class SettingsServiceTests(_ServiceTestCase):
         self.assertIn("system.tile_size", self.service.validate_settings({"system": {"tile_size": 99999}}))
         self.assertIn("appearance.theme", self.service.validate_settings({"appearance": {"theme": "blue"}}))
 
+    def test_intel_xpu_compute_backend_is_valid_and_persists(self):
+        self.assertEqual(
+            self.service.validate_settings({"gpu": {"compute_backend": "xpu"}}),
+            {},
+        )
+        self.service.update_settings({"gpu": {"compute_backend": "xpu"}})
+
+        self.assertEqual(self.service.get_settings().gpu.compute_backend.value, "xpu")
+
     def test_dotted_get_and_set(self):
         self.assertFalse(self.service.get_setting("advanced.experimental_features"))
         self.service.set_setting("advanced.experimental_features", True)
@@ -208,11 +217,11 @@ class ComputeBackendTests(_ServiceTestCase):
     """The Compute Backend picker only offers backends this machine can run."""
 
     CPU_ONLY = {
-        "has_cuda": False, "has_hip": False, "has_dml": False,
+        "has_cuda": False, "has_hip": False, "has_xpu": False, "has_dml": False,
         "has_metal": False, "best_backend": "cpu",
     }
     AMD_DIRECTML = {
-        "has_cuda": False, "has_hip": False, "has_dml": True,
+        "has_cuda": False, "has_hip": False, "has_xpu": False, "has_dml": True,
         "has_metal": False, "best_backend": "dml",
     }
 
@@ -231,7 +240,7 @@ class ComputeBackendTests(_ServiceTestCase):
         # Auto and CPU always work; every GPU backend is flagged with a reason.
         self.assertTrue(backends["auto"]["available"])
         self.assertTrue(backends["cpu"]["available"])
-        for value in ("cuda", "hip", "dml", "metal"):
+        for value in ("cuda", "hip", "xpu", "dml", "metal"):
             with self.subTest(backend=value):
                 self.assertFalse(backends[value]["available"])
                 self.assertIsNotNone(backends[value]["reason"])
@@ -243,9 +252,21 @@ class ComputeBackendTests(_ServiceTestCase):
         self.assertIsNone(backends["dml"]["reason"])
         self.assertTrue(backends["dml"]["recommended"])
         self.assertFalse(backends["cuda"]["available"])
+        self.assertFalse(backends["xpu"]["available"])
         self.assertFalse(backends["metal"]["available"])
+
+    def test_detected_intel_xpu_is_selectable_and_recommended(self):
+        backends = self._backends({
+            **self.CPU_ONLY,
+            "has_xpu": True,
+            "best_backend": "xpu",
+        })
+
+        self.assertTrue(backends["xpu"]["available"])
+        self.assertTrue(backends["xpu"]["recommended"])
+        self.assertIsNone(backends["xpu"]["reason"])
         # Auto advertises what it would resolve to, computed by the backend.
-        self.assertIn("DirectML", backends["auto"]["label"])
+        self.assertIn("Intel XPU", backends["auto"]["label"])
 
     def test_settings_route_reports_available_backends(self):
         response = asyncio.run(settings_routes.get_settings(settings_service=self.service))
@@ -272,10 +293,12 @@ class ComputeBackendTests(_ServiceTestCase):
     def test_configured_device_resolves_only_usable_backends(self):
         self.assertEqual(self._resolved_device("auto"), "auto")
         self.assertEqual(self._resolved_device("dml"), "dml")
+        self.assertEqual(self._resolved_device("xpu", ("xpu", "cpu")), "xpu")
         self.assertEqual(self._resolved_device("cpu"), "cpu")
         # Not present on this machine -> the pipeline decides, torch never sees it.
         self.assertEqual(self._resolved_device("cuda"), "auto")
         self.assertEqual(self._resolved_device("hip"), "auto")
+        self.assertEqual(self._resolved_device("xpu"), "auto")
         self.assertEqual(self._resolved_device("metal"), "auto")
 
     def test_legacy_amd_backend_maps_onto_hip_or_directml(self):

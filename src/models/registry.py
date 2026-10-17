@@ -475,7 +475,7 @@ class ModelRegistry:
         Args:
             feature: Feature name (e.g., "Upscale", "Face Recovery")
             prefer_ai: Prefer AI models over classical algorithms
-            device_type: "cuda", "dml", "hip", "metal", "cpu", "auto"
+            device_type: "cuda", "dml", "hip", "xpu", "metal", "cpu", "auto"
         """
         candidates = self.get_downloaded_for_feature(feature)
         if not candidates:
@@ -488,7 +488,7 @@ class ModelRegistry:
             if device_type == "auto" or device_type == "cpu":
                 if config.can_run_on_cpu:
                     compatible.append(status)
-            elif device_type in ("cuda", "dml", "hip"):
+            elif device_type in ("cuda", "dml", "hip", "xpu"):
                 if config.requires_cuda or config.can_run_on_cpu:
                     compatible.append(status)
             elif device_type == "metal":

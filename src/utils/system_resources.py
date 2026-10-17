@@ -30,6 +30,13 @@ if torch is not None and torch.cuda.is_available():
         _detected_vram_gb = round(_props.total_memory / (1024**3))
     except Exception:
         pass
+elif torch is not None and getattr(torch, "xpu", None) is not None:
+    try:
+        if torch.xpu.is_available():
+            _props = torch.xpu.get_device_properties(0)
+            _detected_vram_gb = round(_props.total_memory / (1024**3))
+    except Exception:
+        pass
 maxvram = min(128, max(2, _detected_vram_gb))
 
 # Which compute stack is PyTorch built with: NVIDIA CUDA or AMD HIP/ROCm.
@@ -40,6 +47,14 @@ _torch_hip_build = torch is not None and bool(getattr(torch.version, "hip", None
 # Platform capabilities
 has_cuda = bool(_torch_cuda_build and torch.cuda.is_available())
 has_hip = bool(_torch_hip_build and torch.cuda.is_available())
+try:
+    has_xpu = bool(
+        torch is not None
+        and getattr(torch, "xpu", None) is not None
+        and torch.xpu.is_available()
+    )
+except Exception:
+    has_xpu = False
 has_metal = torch is not None and hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
 
 # DirectML (AMD / Intel GPUs on Windows) is detected lazily so the heavy
@@ -176,7 +191,7 @@ def is_amd_hardware_detected() -> bool:
 
 
 total_ram_gb = _total_ram_gb
-total_vram_gb = _detected_vram_gb if (has_cuda or has_hip) else 0
+total_vram_gb = _detected_vram_gb if (has_cuda or has_hip or has_xpu) else 0
 if total_vram_gb == 0 and has_dml_backend():
     _os_adapters = _get_os_adapters()
     if _os_adapters:
@@ -192,6 +207,7 @@ def get_platform_capabilities() -> Dict[str, Any]:
     return {
         "has_cuda": has_cuda,
         "has_hip": has_hip,
+        "has_xpu": has_xpu,
         "has_dml": has_dml,
         "has_amd": has_hip or has_dml,
         "amd_hardware_detected": is_amd_hardware_detected(),
@@ -202,15 +218,16 @@ def get_platform_capabilities() -> Dict[str, Any]:
         "best_backend": (
             "cuda" if has_cuda else
             ("hip" if has_hip else
-             ("dml" if has_dml else
-              ("metal" if has_metal else "cpu")))
+             ("xpu" if has_xpu else
+              ("dml" if has_dml else
+               ("metal" if has_metal else "cpu"))))
         ),
     }
 
 
 # Order of preference when resolving the default compute device
-SUPPORTED_DEVICE_TYPES = ("cuda", "hip", "dml", "privateuseone", "mps", "cpu")
-_DEVICE_PREFERENCE = ("cuda", "hip", "dml", "mps")
+SUPPORTED_DEVICE_TYPES = ("cuda", "hip", "xpu", "dml", "privateuseone", "mps", "cpu")
+_DEVICE_PREFERENCE = ("cuda", "hip", "xpu", "dml", "mps")
 
 
 def get_available_devices() -> List[str]:
@@ -220,6 +237,8 @@ def get_available_devices() -> List[str]:
         devices.append("cuda")
     if has_hip:
         devices.append("hip")
+    if has_xpu:
+        devices.append("xpu")
     if has_dml_backend():
         devices.append("dml")
     if has_metal:
@@ -237,6 +256,7 @@ _COMPUTE_BACKENDS: Tuple[Tuple[str, str, Optional[str]], ...] = (
     ("auto", "Auto", None),
     ("cuda", "NVIDIA CUDA", "has_cuda"),
     ("hip", "AMD ROCm (HIP)", "has_hip"),
+    ("xpu", "Intel XPU", "has_xpu"),
     ("dml", "AMD / Intel DirectML", "has_dml"),
     ("metal", "Apple Metal (MPS)", "has_metal"),
     ("cpu", "CPU", None),
@@ -247,6 +267,7 @@ _COMPUTE_BACKEND_LABELS = {value: label for value, label, _ in _COMPUTE_BACKENDS
 _UNAVAILABLE_REASONS = {
     "cuda": "No CUDA-capable GPU detected",
     "hip": "No ROCm (HIP) capable GPU detected",
+    "xpu": "No Intel XPU device detected",
     "dml": "DirectML is not available on this machine",
     "metal": "No Apple Silicon (Metal) GPU detected",
 }
@@ -256,6 +277,7 @@ BACKEND_DEVICE_TYPES = {
     "auto": "auto",
     "cuda": "cuda",
     "hip": "hip",
+    "xpu": "xpu",
     "dml": "dml",
     "metal": "mps",
     "cpu": "cpu",
@@ -304,7 +326,7 @@ def recommended_tile_size(vram_gb: int) -> int:
     return 400
 
 
-_GPU_DEVICE_PREFIXES = ("cuda", "hip", "dml", "privateuseone")
+_GPU_DEVICE_PREFIXES = ("cuda", "hip", "xpu", "dml", "privateuseone")
 
 
 def resolve_tile_size(requested: int, device: str) -> int:
@@ -331,7 +353,7 @@ def resolve_default_device(device: str = "auto") -> str:
     """
     Resolve a user-supplied device string to a device guaranteed to exist on
     this machine. Unknown or unavailable strings (e.g. legacy "gpu:0" entries)
-    fall back to the best available accelerator (CUDA > HIP/ROCm > DirectML >
+    fall back to the best available     accelerator (CUDA > HIP/ROCm > Intel XPU > DirectML >
     Metal) and finally CPU, so torch.device() never receives an invalid type.
     """
     available = set(get_available_devices())
@@ -350,10 +372,15 @@ def resolve_default_device(device: str = "auto") -> str:
                     return _dml_device_string(index)
                 # DirectML not present on this machine -> fall through to auto
             # Clamp CUDA/HIP indices that are out of range on this machine
-            if base in ("cuda", "hip") and torch is not None:
+            if base in ("cuda", "hip", "xpu") and torch is not None:
                 try:
                     index = int(raw.split(":", 1)[1]) if ":" in raw else 0
-                    if index < 0 or index >= torch.cuda.device_count():
+                    device_count = (
+                        torch.xpu.device_count()
+                        if base == "xpu"
+                        else torch.cuda.device_count()
+                    )
+                    if index < 0 or index >= device_count:
                         return base
                 except (ValueError, TypeError):
                     return base
@@ -401,7 +428,7 @@ def check_model_compatibility(
     Model requirements are declared in models.json (requiresCuda / requiresMetal /
     canRunOnCpu) and are enforced here against the detected hardware capabilities.
     PyTorch models tagged requiresCuda run on any available GPU compute backend
-    (NVIDIA CUDA, AMD ROCm/HIP, or AMD/Intel DirectML), so the requirement is
+    (NVIDIA CUDA, AMD ROCm/HIP, Intel XPU, or AMD/Intel DirectML), so the requirement is
     considered satisfied whenever any such backend is present.
     """
     caps = capabilities if capabilities is not None else get_platform_capabilities()
@@ -409,6 +436,7 @@ def check_model_compatibility(
     has_gpu_backend = (
         caps.get("has_cuda", False)
         or caps.get("has_hip", False)
+        or caps.get("has_xpu", False)
         or caps.get("has_dml", False)
     )
 
@@ -419,7 +447,7 @@ def check_model_compatibility(
         reason = "Requires an Apple Silicon (Metal) device"
     elif requires_cuda and not has_gpu_backend:
         compatible = False
-        reason = "Requires a GPU accelerator (NVIDIA CUDA, AMD DirectML, or ROCm) — none detected"
+        reason = "Requires a GPU accelerator (NVIDIA CUDA, AMD ROCm/DirectML, Intel XPU/DirectML) — none detected"
     elif not can_run_on_cpu and not has_gpu_backend:
         compatible = False
         reason = "Requires a GPU accelerator — none detected"
@@ -451,7 +479,7 @@ def _load_models_json() -> Dict[str, Any]:
 
 def get_hardware_gpus() -> List[Dict[str, Any]]:
     """
-    Detect usable GPU accelerators (CUDA / HIP-ROCm / Metal / DirectML) and,
+    Detect usable GPU accelerators (CUDA / HIP-ROCm / XPU / Metal / DirectML) and,
     on Windows, list OS-level video adapters for information. Only entries with
     a real PyTorch device string (entry.selectable) may be chosen for processing.
     """
@@ -500,7 +528,25 @@ def get_hardware_gpus() -> List[Dict[str, Any]]:
             except Exception:
                 pass
 
-    # 3. Apple Metal (MPS)
+    # 3. Intel XPU devices
+    if has_xpu:
+        for i in range(torch.xpu.device_count()):
+            try:
+                props = torch.xpu.get_device_properties(i)
+                gpus.append({
+                    "index": i,
+                    "device": f"xpu:{i}",
+                    "backend": "xpu",
+                    "name": props.name or f"Intel GPU (XPU {i})",
+                    "vram": round(props.total_memory / (1024**3)),
+                    "hardware_accelerated": True,
+                    "selectable": True,
+                    "note": "Intel GPU acceleration via XPU",
+                })
+            except Exception:
+                pass
+
+    # 4. Apple Metal (MPS)
     if torch is not None and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         gpus.append({
             "index": 0,
@@ -512,7 +558,7 @@ def get_hardware_gpus() -> List[Dict[str, Any]]:
             "selectable": True,
         })
 
-    # 4. DirectML (AMD / Intel GPUs on Windows)
+    # 5. DirectML (AMD / Intel GPUs on Windows)
     dml_ok, dml_count = _get_dml_status()
     if dml_ok:
         for i in range(dml_count):
@@ -528,13 +574,13 @@ def get_hardware_gpus() -> List[Dict[str, Any]]:
                 "note": "AMD GPU acceleration via DirectML",
             })
 
-    # 5. OS-level adapters not backed by an active PyTorch accelerator.
+    # 6. OS-level adapters not backed by an active PyTorch accelerator.
     #    These are informational only and carry no usable device string.
     if platform.system() == "Windows":
         accelerator_names = [
             g.get("name", "").lower()
             for g in gpus
-            if g.get("backend") in ("cuda", "hip", "dml")
+            if g.get("backend") in ("cuda", "hip", "xpu", "dml")
         ]
         for idx, adapter in enumerate(os_adapters):
             name = adapter["name"]
@@ -593,6 +639,10 @@ def get_system_hardware_info() -> Dict[str, Any]:
         elif has_hip:
             gpu_info = torch.cuda.get_device_name(0)
             vram_info = f"{torch.cuda.get_device_properties(0).total_memory / (1024**3):.1f} GB"
+        elif has_xpu:
+            props = torch.xpu.get_device_properties(0)
+            gpu_info = props.name or "Intel GPU (XPU)"
+            vram_info = f"{props.total_memory / (1024**3):.1f} GB"
         elif has_dml_backend():
             adapters = _get_os_adapters()
             gpu_info = adapters[0]["name"] if adapters else "DirectML GPU (AMD/Intel)"

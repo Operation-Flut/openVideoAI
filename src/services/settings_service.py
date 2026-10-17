@@ -212,7 +212,7 @@ class SettingsService:
 
         # Check enum values
         enums = {
-            "gpu.compute_backend": ["auto", "cuda", "amd", "hip", "dml", "metal", "cpu"],
+            "gpu.compute_backend": ["auto", "cuda", "amd", "hip", "xpu", "dml", "metal", "cpu"],
             "export.output_format": ["source", "jpg", "png", "webp", "tiff", "mp4"],
             "export.output_type": ["video", "image_sequence"],
             "export.video_quality": ["low", "medium", "high"],

@@ -95,7 +95,7 @@ class UpscalePipeline(EnhancementPipeline):
                 tile=self.tile_size,
                 tile_pad=config['tile_pad'],
                 pre_pad=config['pre_pad'],
-                half=config['half_precision'] and self.fp16 and self.get_device().startswith(('cuda', 'hip', 'dml', 'privateuseone')),
+                half=config['half_precision'] and self.fp16 and self.get_device().startswith(('cuda', 'hip', 'xpu', 'dml', 'privateuseone')),
                 device=device_obj
             )
 

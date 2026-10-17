@@ -16,6 +16,7 @@ class ComputeBackend(str, Enum):
     CUDA = "cuda"
     AMD = "amd"
     HIP = "hip"
+    XPU = "xpu"
     DML = "dml"
     METAL = "metal"
     CPU = "cpu"

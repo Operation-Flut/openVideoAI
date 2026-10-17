@@ -94,9 +94,25 @@ def get_os() -> str:
     return platform.system()
 
 
-def _asset_names(system: str) -> tuple[str, ...]:
+def _selected_backend() -> str:
+    """Resolve the release flavor matching this installation's active backend."""
+    from .settings_service import configured_compute_device
+    from ..utils.system_resources import resolve_default_device
+
+    device = resolve_default_device(configured_compute_device())
+    return {
+        "hip": "rocm",
+        "xpu": "xpu",
+        "privateuseone": "directml",
+        "dml": "directml",
+        "mps": "metal",
+    }.get(device, "cuda")
+
+
+def _asset_names(system: str, backend: str) -> tuple[str, ...]:
     if system == "Windows":
-        return ("openVideoAI-windows-x64.msi",)
+        suffix = "-directml" if backend == "directml" else ""
+        return (f"openVideoAI-windows-x64{suffix}.msi",)
     if system == "Darwin":
         return ("openVideoAI-macos.dmg",)
     if system == "Linux":
@@ -138,24 +154,31 @@ def install_update(release_tag: str) -> Path:
     release = _get_json(f"{_API_URL}/releases/tags/{quote(release_tag, safe='')}")
     assets = release["assets"]
     system = get_os()
-    asset_names = _asset_names(system)
+    backend = _selected_backend()
 
     if system == "Linux":
+        suffix = f"-{backend}" if backend in ("rocm", "xpu") else ""
+        archive_name = f"openVideoAI-linux-x64{suffix}.tar.gz"
         matching_assets = sorted(
             (
                 asset
                 for asset in assets
-                if asset["name"].startswith("openVideoAI-linux-x64.tar.gz.part-")
+                if asset["name"].startswith(f"{archive_name}.part-")
             ),
             key=lambda asset: asset["name"],
         )
         if not matching_assets:
-            raise FileNotFoundError(f"No Linux release assets found for {release_tag}.")
-        output_name = "openVideoAI-linux-x64.tar.gz"
+            raise FileNotFoundError(
+                f"No Linux {backend} release assets found for {release_tag}."
+            )
+        output_name = archive_name
     else:
+        asset_names = _asset_names(system, backend)
         matching_assets = [asset for asset in assets if asset["name"] in asset_names]
         if not matching_assets:
-            raise FileNotFoundError(f"No {system} release asset found for {release_tag}.")
+            raise FileNotFoundError(
+                f"No {system} {backend} release asset found for {release_tag}."
+            )
         matching_assets = matching_assets[:1]
         output_name = matching_assets[0]["name"]
 
