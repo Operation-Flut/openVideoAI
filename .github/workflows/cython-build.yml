@@ -50,7 +50,7 @@ jobs:
           - target: linux-xpu
             runner: ubuntu-24.04
           - target: macos-metal
-            runner: macos-14
+            runner: macos-15
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     permissions:
@@ -139,16 +139,20 @@ jobs:
               pip install -r requirements-amd.txt
               ;;
             linux-rocm)
-              pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm6.4
+              # Pin to specific versions known to have ROCm 6.4 / HIP support for Python 3.12
+              pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/rocm6.4
               ;;
             linux-xpu)
-              pip install torch torchvision --index-url https://download.pytorch.org/whl/xpu
+              # Pin to specific versions known to have XPU support for Python 3.12
+              pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/xpu
               ;;
             macos-metal)
-              pip install --upgrade torch torchvision
+              # Install PyTorch with MPS support (comes by default on macOS)
+              pip install torch==2.5.1 torchvision==0.20.1
               ;;
             windows-cuda|linux-cuda)
-              pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/cu128
+              # Pin to specific versions known to have CUDA 12.8 support for Python 3.12
+              pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu128
               ;;
             *)
               echo "Unsupported build target: ${BUILD_TARGET}" >&2
@@ -164,6 +168,15 @@ jobs:
           import torch
 
           target = os.environ["BUILD_TARGET"]
+          print(f"PyTorch version: {torch.__version__}")
+          print(f"CUDA available: {torch.cuda.is_available()}")
+          print(f"CUDA version: {torch.version.cuda}")
+          print(f"HIP version: {getattr(torch.version, 'hip', None)}")
+          print(f"MPS built: {torch.backends.mps.is_built() if hasattr(torch.backends, 'mps') else 'N/A'}")
+          print(f"MPS available: {torch.backends.mps.is_available() if hasattr(torch.backends, 'mps') else 'N/A'}")
+          print(f"XPU version: {getattr(torch.version, 'xpu', None)}")
+          print(f"Platform: {platform.platform()}, Machine: {platform.machine()}")
+
           if target.endswith("-cuda") and not torch.version.cuda:
               raise SystemExit("CUDA target has a PyTorch build without CUDA support")
           if target == "linux-rocm" and not torch.version.hip:
@@ -194,7 +207,7 @@ jobs:
         # before PyInstaller packages the bundle.
         working-directory: UI
         run: |
-          npm ci
+          npm ci --legacy-peer-deps
           npm run build
 
       - name: Generate Cython stubs for dependencies
