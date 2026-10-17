@@ -7,7 +7,7 @@ from typing import Dict, Any
 from ..utils import system_resources
 from . import paths as _paths
 
-__version__ = "1.0.0"
+__version__ = "0.3.0-beta"
 
 # These are evaluated at import time so they stay stable for the process
 # lifetime, but they already call the right resolver (dev vs. frozen).

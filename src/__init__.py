@@ -1,6 +1,8 @@
 """
 openVideoAI - Main Package
 """
+from dist.openVideoAI._internal.torch._vendor.packaging.version import Version
+
 from .models import (
     get_model_manager,
     initialize_models,
@@ -17,7 +19,9 @@ from .models import (
     DownloadProgress
 )
 
-__version__ = "0.3.0-beta"
+from core.config import __version__ as version
+
+__version__ = version
 __all__ = [
     'get_model_manager',
     'initialize_models',
