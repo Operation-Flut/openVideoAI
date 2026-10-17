@@ -49,13 +49,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -115,7 +115,7 @@ jobs:
           pip install cython mypyc nuitka pyinstaller
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -455,7 +455,7 @@ jobs:
 
       - name: Upload binary artifacts
         if: ${{ env.UPLOAD_ARTIFACTS == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openvideoai-cython-${{ env.BUILD_MODE }}-${{ runner.os }}-py${{ env.PYTHON_VERSION }}
           path: |
@@ -466,7 +466,7 @@ jobs:
 
       - name: Upload cythonized sources
         if: ${{ env.UPLOAD_ARTIFACTS == 'true' && env.CYTHON_COMPILE_ALL == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openvideoai-cythonized-src-${{ runner.os }}-py${{ env.PYTHON_VERSION }}
           path: |
@@ -478,7 +478,7 @@ jobs:
 
       - name: Upload build logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cython-build-logs-${{ github.run_id }}
           path: |
