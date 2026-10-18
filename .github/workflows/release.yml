@@ -800,16 +800,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Checksums live in their own subdirectory so that every asset matches
+          # exactly one of the upload globs below. The artifact globs end in
+          # `part-*`, which also matches a flat `part-aa.sha256`, and the action
+          # uploads all matches concurrently with Promise.all: an asset listed
+          # twice races itself and fails the run with
+          # "Not Found - update-a-release-asset".
+          mkdir -p release-artifacts/checksums
           for file in release-artifacts/openVideoAI-*; do
             [[ -f "$file" && "$file" != *.sha256 ]] || continue
-            (cd release-artifacts && sha256sum "$(basename "$file")" > "$(basename "$file").sha256")
+            (cd release-artifacts && sha256sum "$(basename "$file")" > "checksums/$(basename "$file").sha256")
           done
-          checksum_files=(release-artifacts/*.sha256)
+          checksum_files=(release-artifacts/checksums/*.sha256)
           if ((${#checksum_files[@]} == 0)); then
             echo "No release artifacts found to checksum."
             exit 1
           fi
-          (cd release-artifacts && sha256sum -c ./*.sha256)
+          # The checksum files list bare basenames, so verify from the directory
+          # that holds the artifacts themselves.
+          (cd release-artifacts && sha256sum -c checksums/*.sha256)
 
       - name: Generate release notes
         env:
@@ -833,6 +842,10 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || inputs['dry-run'] != true
         uses: softprops/action-gh-release@v3
         with:
+          # Every asset must match exactly one pattern here: overlaps make the
+          # action upload the same asset twice at once, which fails the run.
+          # The checksums are kept out of the artifact globs' way in
+          # release-artifacts/checksums (see the checksum step).
           files: |
             release-artifacts/openVideoAI-windows-x64*.msi
             release-artifacts/openVideoAI-windows-x64*-portable.zip
@@ -840,7 +853,7 @@ jobs:
             release-artifacts/openVideoAI-linux-x64*.tar.gz.part-*
             release-artifacts/openVideoAI-macos.dmg
             release-artifacts/openVideoAI-macos.zip
-            release-artifacts/*.sha256
+            release-artifacts/checksums/*.sha256
           draft: ${{ inputs.draft || false }}
           prerelease: ${{ needs.release-info.outputs.prerelease }}
           tag_name: ${{ needs.release-info.outputs.version }}
