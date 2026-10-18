@@ -283,8 +283,32 @@ jobs:
                   extensions,
                   compiler_directives={
                       'language_level': '3',
-                      'boundscheck': False,
-                      'wraparound': False,
+                      # MUST stay off. Cython 3 defaults annotation_typing to True,
+                      # which re-reads pure-Python annotations as *C type
+                      # declarations*. This codebase uses annotations for real
+                      # runtime introspection (pydantic models, FastAPI
+                      # dependencies), so with the default the compiled app died
+                      # on import:
+                      #   src/api/dependencies.py: model_name: str = Depends(...)
+                      #   TypeError: Expected str, got Depends
+                      # Every leg then failed its binary health check (Linux/macOS
+                      # exited with code 1 after ~3s; Windows just timed out
+                      # because the windowed build shows a traceback dialog that
+                      # keeps the process alive).
+                      'annotation_typing': False,
+                      # MUST stay on. The codebase indexes dynamically produced
+                      # sequences with negative indices (url.split("/")[-1],
+                      # parts[-1], ...). With wraparound=False Cython skips the
+                      # "i += len(seq)" fixup and reads *before* the sequence's
+                      # item array - `PyList_GET_ITEM(list, -1)` and then an INCREF
+                      # on whatever pointer happens to sit there. boundscheck=False
+                      # removes the IndexError that would otherwise catch it, so it
+                      # is silent heap corruption: the packaged app died with an
+                      # access violation (0xC0000005) inside
+                      # ModelRegistry.refresh_status() -> get_all_models_with_status()
+                      # during the API lifespan startup, on every platform.
+                      'boundscheck': True,
+                      'wraparound': True,
                       'initializedcheck': False,
                       'nonecheck': False,
                       'cdivision': True,
@@ -362,18 +386,46 @@ jobs:
 
       - name: Verify cythonized modules
         run: |
-          python -c "
+          python - <<'PY'
+          import importlib
           import sys
-          sys.path.insert(0, 'src')
-          try:
-              import core
-              import models
-              import services
-              import api
-              print('Core modules import successfully')
-          except ImportError as e:
-              print(f'Import warning: {e}')
-          "
+
+          # Import the compiled extensions the way the app does - as `src.*`
+          # packages. The previous version put src/ on sys.path and imported
+          # `core`, `models`, `services`, `api` as top-level packages, which
+          # always died on "attempted relative import beyond top-level package"
+          # (src/core/config.py does `from ..utils import ...`), and the
+          # ImportError was swallowed by a bare except - so this step never
+          # verified a single extension module. Not importing src.* is exactly
+          # how the annotation_typing regression got as far as a 6-leg
+          # PyInstaller run before failing every binary health check.
+          # (src.features.upscaling is deliberately absent: it is already broken
+          # without Cython - it imports UpscalePipeline from src.processing.upscale
+          # although it lives in src.processing.upscale.pipeline - and nothing in
+          # the app's import graph touches it.)
+          modules = [
+              "src.core.paths",
+              "src.core.config",
+              "src.utils.system_resources",
+              "src.api.main",  # routes -> dependencies -> services -> processing
+              "src.services.processing_service",
+              "src.models.registry",
+              "src.processing.pipeline.registry",
+          ]
+
+          failed = []
+          for name in modules:
+              try:
+                  importlib.import_module(name)
+                  print(f"OK   {name} -> {getattr(sys.modules[name], '__file__', '?')}")
+              except Exception as exc:  # noqa: BLE001 - report all, then fail
+                  print(f"FAIL {name}: {type(exc).__name__}: {exc}")
+                  failed.append(name)
+
+          if failed:
+              sys.exit(f"{len(failed)} cythonized module(s) failed to import: {failed}")
+          print("All cythonized modules import successfully")
+          PY
 
       - name: Type-check cythonized code
         if: ${{ env.BUILD_MODE != 'api-only' }}
@@ -591,18 +643,49 @@ jobs:
           if not binary.is_file():
               raise SystemExit(f"Build output not found: {binary}")
 
-          # The bundle is built with console=False, so stdout/stderr used to be
-          # sent to DEVNULL and a timed-out health check gave no clue why. Capture
-          # them to packaged-app.log (picked up by the "Upload build logs" step)
-          # and print the tail when the check fails.
+          # The bundle is built with console=False and main.py redirects
+          # sys.stdout/sys.stderr into its own rotating log file, so a failing
+          # health check used to be completely silent:
+          #   - Windows: no stdout at all, and the windowed build pops up
+          #     PyInstaller's traceback dialog, so a crashed app only looks like a
+          #     180s timeout.
+          #   - Linux/macOS: "exited with code 1" with no reason given.
+          # Capture both channels and dump them on any failure.
           log_path = Path("packaged-app.log")
+
+          def app_log_path() -> Path:
+              """Where the frozen app writes its rotating log (src/core/paths.py)."""
+              if os.name == "nt":
+                  base = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+              elif sys.platform == "darwin":
+                  base = Path.home() / "Library" / "Application Support"
+              else:
+                  base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+              return base / "openVideoAI" / "logs" / "openVideoAI.log"
+
+          def dump(title: str, path: Path, limit: int = 80) -> None:
+              print(f"--- {title}: {path} ---")
+              try:
+                  text = path.read_text(errors="replace").strip()
+              except OSError as exc:
+                  print(f"(unreadable: {exc})")
+                  text = ""
+              if text:
+                  lines = text.splitlines()
+                  if len(lines) > limit:
+                      print(f"(... {len(lines) - limit} earlier lines omitted ...)")
+                  print("\n".join(lines[-limit:]))
+              else:
+                  print("(empty)")
+              print(f"--- end {title} ---")
+
+          failure = None
           with log_path.open("wb") as log_file:
               process = subprocess.Popen(
                   [str(binary.resolve()), "--mode", "server", "--port", "18080"],
                   stdout=log_file,
                   stderr=subprocess.STDOUT,
               )
-              healthy = False
               try:
                   # The frozen bundle imports torch/cv2/fastapi on first run;
                   # main.py's own _wait_for_server() budgets 240s for that
@@ -611,19 +694,19 @@ jobs:
                   deadline = time.monotonic() + 180
                   while time.monotonic() < deadline:
                       if process.poll() is not None:
-                          raise SystemExit(
-                              f"Packaged app exited with code {process.returncode}"
-                          )
+                          failure = f"Packaged app exited with code {process.returncode}"
+                          break
                       try:
                           with urllib.request.urlopen(
                               "http://127.0.0.1:18080/api/health", timeout=1
                           ) as response:
                               if response.status == 200:
                                   print("Binary health check passed!")
-                                  healthy = True
                                   break
                       except (urllib.error.URLError, TimeoutError):
                           time.sleep(0.5)
+                  else:
+                      failure = "Packaged app did not become healthy within 180 seconds"
               finally:
                   process.terminate()
                   try:
@@ -632,12 +715,10 @@ jobs:
                       process.kill()
                       process.wait()
 
-              if not healthy:
-                  print("--- packaged app output ---")
-                  text = log_path.read_text(errors="replace").strip()
-                  print(text or "(no output; the app is built with console=False)")
-                  print("--- end packaged app output ---")
-                  raise SystemExit("Packaged app did not become healthy within 180 seconds")
+          if failure:
+              dump("packaged app stdout/stderr", log_path)
+              dump("frozen app log", app_log_path())
+              raise SystemExit(failure)
           PY
 
       - name: Upload binary artifacts
