@@ -409,7 +409,12 @@ jobs:
                   ('src/models', 'src/models'),
                   ('src/processing', 'src/processing'),
                   ('assets', 'assets'),
-                  ('models', 'models'),
+                  # NOTE: no ('models', 'models') entry. models/ is gitignored and
+                  # holds the multi-GB downloaded weights, which a frozen build
+                  # never reads: src.core.paths.models_dir() resolves to the
+                  # per-user data dir when frozen. Bundling it made PyInstaller
+                  # abort on every leg of a clean checkout ("Unable to find
+                  # '<repo>/models' when adding binary and data files").
                   ('UI/dist', 'UI/dist'),
                   ('models.json', '.'),
               ],
@@ -570,7 +575,10 @@ jobs:
               stderr=subprocess.DEVNULL,
           )
           try:
-              deadline = time.monotonic() + 30
+              # The frozen bundle imports torch/cv2/fastapi on first run; main.py's
+              # own _wait_for_server() budgets 240s for that ("often 30s+"), so a
+              # 30s deadline here failed the health check on a cold runner.
+              deadline = time.monotonic() + 180
               while time.monotonic() < deadline:
                   if process.poll() is not None:
                       raise SystemExit(f"Packaged app exited with code {process.returncode}")
@@ -584,7 +592,7 @@ jobs:
                   except (urllib.error.URLError, TimeoutError):
                       time.sleep(0.5)
               else:
-                  raise SystemExit("Packaged app did not become healthy within 30 seconds")
+                  raise SystemExit("Packaged app did not become healthy within 180 seconds")
           finally:
               process.terminate()
               try:
