@@ -123,10 +123,12 @@ def test_api_schemas():
 def test_fastapi_app():
     """Test FastAPI app creation."""
     from src.api.main import create_app
+    from src.core.config import __version__
 
     app = create_app()
     assert app.title == "openVideoAI"
-    assert app.version == "1.0.0"
+    # The version has a single source of truth in src/core/config.py.
+    assert app.version == __version__
 
     print("FastAPI app test passed!")
 

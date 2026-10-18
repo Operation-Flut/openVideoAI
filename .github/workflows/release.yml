@@ -206,8 +206,11 @@ jobs:
           if ($env:WINDOWS_BACKEND -eq "directml") {
             pip install -r requirements-amd.txt
           } else {
-            # Pin to specific version known to have CUDA 12.8 support for Python 3.12
-            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu128
+            # Pin to specific version known to have CUDA 12.8 support for Python 3.12.
+            # --force-reinstall is required: requirements.txt has already installed an
+            # equal-version CPU-only wheel, which pip would otherwise treat as
+            # "already satisfied" and keep.
+            pip install --no-cache-dir --force-reinstall torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu128
           }
 
       - name: Verify Windows PyTorch backend
@@ -512,10 +515,19 @@ jobs:
 
       - name: Build executable with PyInstaller
         run: |
+          # PyInstaller's CArchive table of contents stores 32-bit offsets, so a
+          # onefile payload larger than 4 GiB cannot be assembled ("'I' format
+          # requires 0 <= number <= 4294967295"). The ROCm runtime alone exceeds
+          # that, hence onedir for that backend. The tar + split packaging steps
+          # below work the same for a directory as for a single file.
+          ONEFILE_FLAG="--onefile"
+          if [[ "$LINUX_BACKEND" == "rocm" ]]; then
+            ONEFILE_FLAG=""
+          fi
           python -m PyInstaller \
             --noconfirm \
             --clean \
-            --onefile \
+            $ONEFILE_FLAG \
             --name openVideoAI \
             --add-data "UI/dist:UI/dist" \
             --add-data "assets:assets" \

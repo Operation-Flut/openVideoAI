@@ -151,9 +151,11 @@ jobs:
               pip install torch==2.5.1 torchvision==0.20.1
               ;;
             windows-cuda|linux-cuda)
-              # Pin to specific version known to have CUDA 12.8 support for Python 3.12
-              # Use --no-cache-dir to avoid restoring CPU-only cached wheels
-              pip install --no-cache-dir torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu128
+              # Pin to specific version known to have CUDA 12.8 support for Python 3.12.
+              # --force-reinstall is required: requirements.txt may have already pulled
+              # an equal-version CPU-only wheel, which pip would otherwise consider
+              # "already satisfied" and silently keep.
+              pip install --no-cache-dir --force-reinstall torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu128
               ;;
             *)
               echo "Unsupported build target: ${BUILD_TARGET}" >&2
@@ -213,7 +215,8 @@ jobs:
 
       - name: Generate Cython stubs for dependencies
         run: |
-          pip install mypy-stubs cython-stubs
+          # mypy.stubgen ships with mypy itself (installed above); the
+          # "mypy-stubs" distribution does not exist on PyPI.
           python -m mypy.stubgen -o stubs -p torch -p torchvision -p cv2 -p numpy -p fastapi -p pydantic -p uvicorn -p pydantic_settings 2>/dev/null || true
 
       - name: Cythonize source code
