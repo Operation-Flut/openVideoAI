@@ -483,7 +483,18 @@ jobs:
                   'pip', 'pip.*',
                   'wheel', 'wheel.*',
                   'pkg_resources',
-                  'distutils',
+                  # NOTE: 'distutils' must NOT be excluded. On Python 3.12
+                  # PyInstaller's pre-safe-import hook for distutils aliases
+                  # setuptools._distutils to the name `distutils`. If `distutils`
+                  # is already in the graph as an excluded module, that alias
+                  # raises during Analysis and aborts every leg with
+                  #   ValueError: Target module "distutils" already imported as
+                  #   "ExcludedModule('distutils',)"
+                  # The spec itself never mentions distutils, but
+                  # src/utils/distutils_compat.py imports it, which is enough to
+                  # pull the hook in. setuptools stays excluded, so the alias
+                  # carries no code - which matches the app, where the compat
+                  # shim is only re-exported and never installed.
                   'docutils', 'docutils.*',
                   'pygments', 'pygments.*',
                   'tkinter.test', 'turtledemo',
