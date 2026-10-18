@@ -56,10 +56,8 @@ tensorrt = ["tensorrt>=8.6.0"]
 onnx = ["onnxruntime>=1.18.0"]
 ffmpeg = ["ffmpeg-python>=0.2.0"]
 
-[project.entry-points]
-console_scripts = [
-    "openvideoai = src.cli.main:app",
-]
+[project.entry-points.console_scripts]
+openvideoai = "src.cli.main:app"
 
 [tool.setuptools.packages.find]
 where = ["."]

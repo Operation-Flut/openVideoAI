@@ -239,6 +239,10 @@ jobs:
           npm run build
 
       - name: Build executable with PyInstaller (--onedir for MSI)
+        # The onedir output exists only to feed heat.exe/WiX. A CUDA-enabled MSI
+        # would be far past the 2 GB MSI ceiling (an MSI is COM structured
+        # storage), so that backend ships split portable parts instead.
+        if: env.WINDOWS_BACKEND != 'cuda'
         shell: pwsh
         run: |
           $backendArgs = @()
@@ -265,6 +269,7 @@ jobs:
             main.py
 
       - name: Verify onedir build exists
+        if: env.WINDOWS_BACKEND != 'cuda'
         shell: pwsh
         run: |
           if (-not (Test-Path "dist\openVideoAI\openVideoAI.exe")) {
@@ -275,6 +280,7 @@ jobs:
           Write-Host "dist\openVideoAI\openVideoAI.exe  $([math]::Round($size,1)) MB"
 
       - name: Verify onedir data directories
+        if: env.WINDOWS_BACKEND != 'cuda'
         shell: pwsh
         run: |
           Write-Host "=== dist\openVideoAI directory structure ==="
@@ -335,11 +341,62 @@ jobs:
         shell: pwsh
         run: |
           $backendSuffix = if ($env:WINDOWS_BACKEND -eq "cuda") { "" } else { "-$env:WINDOWS_BACKEND" }
-          Compress-Archive -Path dist\openVideoAI-portable.exe `
-                           -DestinationPath "openVideoAI-windows-x64$backendSuffix-portable.zip" `
-                           -Force
+          $zip = "openVideoAI-windows-x64$backendSuffix-portable.zip"
+          # Compress-Archive cannot stream a single entry larger than 2 GiB and
+          # dies with "Exception calling Write with 3 arguments: Stream was too
+          # long"; the CUDA-enabled onefile (~2.5 GB) hits exactly that. The tar
+          # bundled with Windows is bsdtar, which writes such zips fine. Call it
+          # by absolute path so Git's GNU tar cannot shadow it (GNU tar would
+          # silently store a tar archive under a .zip name).
+          & "$env:SystemRoot\System32\tar.exe" -a -c -f $zip -C dist openVideoAI-portable.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $size = (Get-Item $zip).Length / 1MB
+          Write-Host "$zip  $([math]::Round($size,1)) MB"
+
+      - name: Split oversized portable ZIP
+        # GitHub rejects release assets of 2 GiB or more and the CUDA-enabled
+        # portable is ~2.5 GiB. Chunks are named exactly like the Linux legs
+        # (`split -b 1900M`), so reassembly is the same on every platform:
+        #   cmd:   copy /b <name>.part-* portable.zip
+        #   POSIX: cat <name>.part-* > portable.zip
+        shell: pwsh
+        run: |
+          $backendSuffix = if ($env:WINDOWS_BACKEND -eq "cuda") { "" } else { "-$env:WINDOWS_BACKEND" }
+          $zip = "openVideoAI-windows-x64$backendSuffix-portable.zip"
+          $limit = 1900MB
+          if ((Get-Item $zip).Length -le $limit) {
+            Write-Host "$zip is below the $([math]::Round($limit / 1MB)) MB chunk limit - keeping it whole."
+            exit 0
+          }
+
+          $buffer = New-Object byte[] (8MB)
+          $source = [System.IO.File]::OpenRead($zip)
+          try {
+            $index = 0
+            while ($source.Position -lt $source.Length) {
+              $suffix = [string][char](97 + [int][math]::Floor($index / 26)) + [string][char](97 + ($index % 26))
+              $part = "$($zip).part-$suffix"
+              $target = [System.IO.File]::Create($part)
+              try {
+                $remaining = [long]$limit
+                while ($remaining -gt 0) {
+                  $read = $source.Read($buffer, 0, [int][Math]::Min([long]$buffer.Length, $remaining))
+                  if ($read -le 0) { break }
+                  $target.Write($buffer, 0, $read)
+                  $remaining -= $read
+                }
+              } finally { $target.Dispose() }
+              Write-Host "  $part  $([math]::Round((Get-Item $part).Length / 1MB,1)) MB"
+              $index++
+            }
+          } finally { $source.Dispose() }
+
+          # Drop the whole archive: it is past the release-asset limit and would
+          # double the upload - the parts already carry every byte.
+          Remove-Item $zip
 
       - name: Install WiX Toolset 3
+        if: env.WINDOWS_BACKEND != 'cuda'
         shell: pwsh
         run: |
           # The Windows runner image already ships WiX 3, so pinning an older
@@ -369,6 +426,7 @@ jobs:
           $wixBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Write WiX source file
+        if: env.WINDOWS_BACKEND != 'cuda'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path build -Force | Out-Null
@@ -379,6 +437,7 @@ jobs:
           $wxs | Set-Content -Path build\openVideoAI.wxs -Encoding UTF8
 
       - name: Harvest application files (heat)
+        if: env.WINDOWS_BACKEND != 'cuda'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path build\wixobj -Force | Out-Null
@@ -395,6 +454,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Compile WiX source (candle)
+        if: env.WINDOWS_BACKEND != 'cuda'
         shell: pwsh
         run: |
           # Use an absolute source root so the harvested Source paths resolve
@@ -407,6 +467,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Link WiX object (light)
+        if: env.WINDOWS_BACKEND != 'cuda'
         shell: pwsh
         run: |
           $backendSuffix = if ($env:WINDOWS_BACKEND -eq "cuda") { "" } else { "-$env:WINDOWS_BACKEND" }
@@ -427,6 +488,7 @@ jobs:
           path: |
             openVideoAI-windows-x64*.msi
             openVideoAI-windows-x64*-portable.zip
+            openVideoAI-windows-x64*-portable.zip.part-*
 
   # =============================================================================
   # Linux build
@@ -774,6 +836,7 @@ jobs:
           files: |
             release-artifacts/openVideoAI-windows-x64*.msi
             release-artifacts/openVideoAI-windows-x64*-portable.zip
+            release-artifacts/openVideoAI-windows-x64*-portable.zip.part-*
             release-artifacts/openVideoAI-linux-x64*.tar.gz.part-*
             release-artifacts/openVideoAI-macos.dmg
             release-artifacts/openVideoAI-macos.zip
@@ -781,6 +844,8 @@ jobs:
           draft: ${{ inputs.draft || false }}
           prerelease: ${{ needs.release-info.outputs.prerelease }}
           tag_name: ${{ needs.release-info.outputs.version }}
-          # Exclude very large artifacts that exceed GitHub release asset size limit (2GB)
-          # Linux onefile build can be large due to bundled dependencies
+          # Everything above stays under GitHub's 2 GiB per-asset limit: the
+          # Linux tarballs, and an oversized Windows portable, ship as .part-*
+          # chunks. The CUDA Windows leg has no MSI because an MSI is COM
+          # structured storage and cannot grow past 2 GB.
           body_path: RELEASE_NOTES.md
