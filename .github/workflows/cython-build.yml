@@ -510,13 +510,25 @@ jobs:
 
           pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+          # Onedir build. The verify / Test binary / upload steps below all expect
+          # dist/openVideoAI/openVideoAI[.exe], so the EXE has to be a thin onedir
+          # bootloader and every binary/data entry must be collected by COLLECT.
+          # Handing a.binaries/a.zipfiles/a.datas to EXE as well (the onefile
+          # shape) builds a onefile PKG *inside* the onedir tree, which failed on
+          # every leg in different ways:
+          #   - linux-cuda / linux-xpu / macos-metal: EXE and COLLECT both claim
+          #     dist/openVideoAI, so COLLECT aborted with
+          #     ValueError: Resource '.../dist/openVideoAI' is not a valid file!
+          #   - linux-rocm: the onefile CArchive overflowed its 32-bit TOC field,
+          #     struct.error: 'I' format requires 0 <= number <= 4294967295
+          #   - windows: the COLLECTed exe *was* the onefile build, so the binary
+          #     under test re-extracted the whole multi-GB payload on every
+          #     launch and the 180s health check timed out
           exe = EXE(
               pyz,
               a.scripts,
-              a.binaries,
-              a.zipfiles,
-              a.datas,
               [],
+              exclude_binaries=True,
               name='openVideoAI',
               debug=False,
               bootloader_ignore_signals=False,
@@ -540,7 +552,6 @@ jobs:
           coll = COLLECT(
               exe,
               a.binaries,
-              a.zipfiles,
               a.datas,
               strip=False,
               upx=False,
@@ -580,37 +591,53 @@ jobs:
           if not binary.is_file():
               raise SystemExit(f"Build output not found: {binary}")
 
-          process = subprocess.Popen(
-              [str(binary.resolve()), "--mode", "server", "--port", "18080"],
-              stdout=subprocess.DEVNULL,
-              stderr=subprocess.DEVNULL,
-          )
-          try:
-              # The frozen bundle imports torch/cv2/fastapi on first run; main.py's
-              # own _wait_for_server() budgets 240s for that ("often 30s+"), so a
-              # 30s deadline here failed the health check on a cold runner.
-              deadline = time.monotonic() + 180
-              while time.monotonic() < deadline:
-                  if process.poll() is not None:
-                      raise SystemExit(f"Packaged app exited with code {process.returncode}")
-                  try:
-                      with urllib.request.urlopen(
-                          "http://127.0.0.1:18080/api/health", timeout=1
-                      ) as response:
-                          if response.status == 200:
-                              print("Binary health check passed!")
-                              break
-                  except (urllib.error.URLError, TimeoutError):
-                      time.sleep(0.5)
-              else:
-                  raise SystemExit("Packaged app did not become healthy within 180 seconds")
-          finally:
-              process.terminate()
+          # The bundle is built with console=False, so stdout/stderr used to be
+          # sent to DEVNULL and a timed-out health check gave no clue why. Capture
+          # them to packaged-app.log (picked up by the "Upload build logs" step)
+          # and print the tail when the check fails.
+          log_path = Path("packaged-app.log")
+          with log_path.open("wb") as log_file:
+              process = subprocess.Popen(
+                  [str(binary.resolve()), "--mode", "server", "--port", "18080"],
+                  stdout=log_file,
+                  stderr=subprocess.STDOUT,
+              )
+              healthy = False
               try:
-                  process.wait(timeout=10)
-              except subprocess.TimeoutExpired:
-                  process.kill()
-                  process.wait()
+                  # The frozen bundle imports torch/cv2/fastapi on first run;
+                  # main.py's own _wait_for_server() budgets 240s for that
+                  # ("often 30s+"), so a 30s deadline here failed the health
+                  # check on a cold runner.
+                  deadline = time.monotonic() + 180
+                  while time.monotonic() < deadline:
+                      if process.poll() is not None:
+                          raise SystemExit(
+                              f"Packaged app exited with code {process.returncode}"
+                          )
+                      try:
+                          with urllib.request.urlopen(
+                              "http://127.0.0.1:18080/api/health", timeout=1
+                          ) as response:
+                              if response.status == 200:
+                                  print("Binary health check passed!")
+                                  healthy = True
+                                  break
+                      except (urllib.error.URLError, TimeoutError):
+                          time.sleep(0.5)
+              finally:
+                  process.terminate()
+                  try:
+                      process.wait(timeout=10)
+                  except subprocess.TimeoutExpired:
+                      process.kill()
+                      process.wait()
+
+              if not healthy:
+                  print("--- packaged app output ---")
+                  text = log_path.read_text(errors="replace").strip()
+                  print(text or "(no output; the app is built with console=False)")
+                  print("--- end packaged app output ---")
+                  raise SystemExit("Packaged app did not become healthy within 180 seconds")
           PY
 
       - name: Upload binary artifacts
@@ -620,7 +647,6 @@ jobs:
           name: openvideoai-cython-${{ env.BUILD_MODE }}-${{ env.BUILD_TARGET }}-py${{ env.PYTHON_VERSION }}
           path: |
             dist/openVideoAI/
-            dist/openVideoAI.exe
           retention-days: 30
           if-no-files-found: error
 
