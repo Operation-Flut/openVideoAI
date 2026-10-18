@@ -206,11 +206,12 @@ jobs:
           if ($env:WINDOWS_BACKEND -eq "directml") {
             pip install -r requirements-amd.txt
           } else {
-            # Pin to specific version known to have CUDA 12.8 support for Python 3.12.
+            # requirements.txt pins torch==2.5.1; its CUDA wheel lives on the cu124
+            # index (cu128 only starts at torch 2.7 and has no 2.5.1).
             # --force-reinstall is required: requirements.txt has already installed an
             # equal-version CPU-only wheel, which pip would otherwise treat as
             # "already satisfied" and keep.
-            pip install --no-cache-dir --force-reinstall torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu128
+            pip install --no-cache-dir --force-reinstall torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu124
           }
 
       - name: Verify Windows PyTorch backend
@@ -469,8 +470,11 @@ jobs:
           pip install pyinstaller
           case "${LINUX_BACKEND}" in
             cuda)
-              # Pin to specific version known to have CUDA 12.8 support for Python 3.12
-              pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu128
+              # requirements.txt pins torch==2.5.1; its CUDA wheel lives on the cu124
+              # index (cu128 only starts at torch 2.7 and has no 2.5.1).
+              # --force-reinstall keeps the installed wheel identical to the pin
+              # instead of silently reusing whatever PyPI resolved.
+              pip install --no-cache-dir --force-reinstall torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu124
               ;;
             rocm)
               # Use latest from ROCm 6.4 index (2.5.1 lacks ROCm 6.4 support)

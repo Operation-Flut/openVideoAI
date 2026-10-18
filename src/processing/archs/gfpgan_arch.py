@@ -11,6 +11,7 @@ and DirectML backends. Matches the official GFPGANv1.4.pth checkpoint
 input_is_latent=True as used by GFPGANer).
 """
 import math
+import random
 
 import torch
 from torch import nn

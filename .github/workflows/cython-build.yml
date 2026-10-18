@@ -151,11 +151,12 @@ jobs:
               pip install torch==2.5.1 torchvision==0.20.1
               ;;
             windows-cuda|linux-cuda)
-              # Pin to specific version known to have CUDA 12.8 support for Python 3.12.
-              # --force-reinstall is required: requirements.txt may have already pulled
-              # an equal-version CPU-only wheel, which pip would otherwise consider
-              # "already satisfied" and silently keep.
-              pip install --no-cache-dir --force-reinstall torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu128
+              # requirements.txt pins torch==2.5.1; its CUDA wheel is cu124 (the
+              # cu128 index only starts at torch 2.7, so it has no 2.5.1).
+              # --force-reinstall is required: requirements.txt has already pulled an
+              # equal-version CPU-only wheel on Windows, which pip would otherwise
+              # consider "already satisfied" and silently keep.
+              pip install --no-cache-dir --force-reinstall torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu124
               ;;
             *)
               echo "Unsupported build target: ${BUILD_TARGET}" >&2
@@ -242,112 +243,119 @@ jobs:
           from pathlib import Path
           from Cython.Build import cythonize
           from setuptools import Extension
-          import subprocess
 
-          # Find all .py files to compile
-          src_root = Path("src")
-          py_files = list(src_root.rglob("*.py"))
 
-          # Exclude certain files
-          exclude_patterns = [
-              "__pycache__",
-              "test_",
-              "_test",
-              "conftest",
-              "setup.py",
-              "manage.py",
-          ]
+          def main():
+              # Find all .py files to compile
+              src_root = Path("src")
+              py_files = list(src_root.rglob("*.py"))
 
-          def should_compile(f):
-              f_str = str(f)
-              return not any(p in f_str for p in exclude_patterns)
+              # Exclude certain files
+              exclude_patterns = [
+                  "__pycache__",
+                  "test_",
+                  "_test",
+                  "conftest",
+                  "setup.py",
+                  "manage.py",
+              ]
 
-          extensions = []
-          for py_file in py_files:
-              if not should_compile(py_file):
-                  continue
-              # Skip entry points that need to stay as .py
-              if py_file.name in ("main.py", "__main__.py"):
-                  continue
-              # Convert to module path
-              mod_path = py_file.relative_to(".").with_suffix("")
-              mod_name = str(mod_path).replace(os.sep, ".")
-              extensions.append(Extension(mod_name, [str(py_file)]))
+              def should_compile(f):
+                  f_str = str(f)
+                  return not any(p in f_str for p in exclude_patterns)
 
-          print(f"Compiling {len(extensions)} modules...")
+              extensions = []
+              for py_file in py_files:
+                  if not should_compile(py_file):
+                      continue
+                  # Skip entry points that need to stay as .py
+                  if py_file.name in ("main.py", "__main__.py"):
+                      continue
+                  # Convert to module path
+                  mod_path = py_file.relative_to(".").with_suffix("")
+                  mod_name = str(mod_path).replace(os.sep, ".")
+                  extensions.append(Extension(mod_name, [str(py_file)]))
 
-          # Cythonize with optimization flags
-          ext_modules = cythonize(
-              extensions,
-              compiler_directives={
-                  'language_level': '3',
-                  'boundscheck': False,
-                  'wraparound': False,
-                  'initializedcheck': False,
-                  'nonecheck': False,
-                  'cdivision': True,
-                  'embedsignature': True,
-                  'profile': False,
-                  'linetrace': False,
-              },
-              annotate=True,
-              nthreads=os.cpu_count(),
-              force=True,
-          )
+              print(f"Compiling {len(extensions)} modules...")
 
-          # Build the extensions
-          from setuptools import setup, Distribution
-          from setuptools.command.build_ext import build_ext
+              # Cythonize with optimization flags
+              cythonize(
+                  extensions,
+                  compiler_directives={
+                      'language_level': '3',
+                      'boundscheck': False,
+                      'wraparound': False,
+                      'initializedcheck': False,
+                      'nonecheck': False,
+                      'cdivision': True,
+                      'embedsignature': True,
+                      'profile': False,
+                      'linetrace': False,
+                  },
+                  annotate=True,
+                  nthreads=os.cpu_count(),
+                  force=True,
+              )
 
-          class BuildExt(build_ext):
-              def build_extensions(self):
-                  # Add optimization flags
-                  for ext in self.extensions:
-                      if os.name == "nt":
-                          ext.extra_compile_args = ["/O2"]
-                          ext.extra_link_args = []
-                      elif sys.platform == "darwin":
-                          ext.extra_compile_args = ["-O3", "-pipe"]
-                          ext.extra_link_args = []
-                      else:
-                          ext.extra_compile_args = [
-                              "-O3",
-                              "-ffast-math",
-                              "-funroll-loops",
-                              "-fomit-frame-pointer",
-                              "-pipe",
-                          ]
-                          ext.extra_link_args = ["-s", "-Wl,-O1"]
-                  super().build_extensions()
+              # Build the extensions
+              from setuptools import setup, Distribution
+              from setuptools.command.build_ext import build_ext
 
-          setup(
-              ext_modules=extensions,
-              script_args=["build_ext", "--inplace"],
-              cmdclass={"build_ext": BuildExt},
-          )
+              class BuildExt(build_ext):
+                  def build_extensions(self):
+                      # Add optimization flags
+                      for ext in self.extensions:
+                          if os.name == "nt":
+                              ext.extra_compile_args = ["/O2"]
+                              ext.extra_link_args = []
+                          elif sys.platform == "darwin":
+                              ext.extra_compile_args = ["-O3", "-pipe"]
+                              ext.extra_link_args = []
+                          else:
+                              ext.extra_compile_args = [
+                                  "-O3",
+                                  "-ffast-math",
+                                  "-funroll-loops",
+                                  "-fomit-frame-pointer",
+                                  "-pipe",
+                              ]
+                              ext.extra_link_args = ["-s", "-Wl,-O1"]
+                      super().build_extensions()
 
-          print("Cythonization complete!")
+              setup(
+                  ext_modules=extensions,
+                  script_args=["build_ext", "--inplace"],
+                  cmdclass={"build_ext": BuildExt},
+              )
 
-          import os
-          from pathlib import Path
+              print("Cythonization complete!")
 
-          # Verify outputs
-          so_files = list(Path(".").rglob("*.so"))
-          pyd_files = list(Path(".").rglob("*.pyd"))
-          c_files = list(Path(".").rglob("*.c"))
-          print(f"Generated: {len(so_files)} .so, {len(pyd_files)} .pyd, {len(c_files)} .c files")
+              # Verify outputs
+              so_files = list(Path(".").rglob("*.so"))
+              pyd_files = list(Path(".").rglob("*.pyd"))
+              c_files = list(Path(".").rglob("*.c"))
+              print(f"Generated: {len(so_files)} .so, {len(pyd_files)} .pyd, {len(c_files)} .c files")
 
-          if not so_files and not pyd_files:
-              print("WARNING: No compiled extensions found!")
-              sys.exit(1)
+              if not so_files and not pyd_files:
+                  print("WARNING: No compiled extensions found!")
+                  sys.exit(1)
 
-          # Clean up .c files to save space
-          for c_file in c_files:
-              try:
-                  c_file.unlink()
-              except:
-                  pass
+              # Clean up .c files to save space
+              for c_file in c_files:
+                  try:
+                      c_file.unlink()
+                  except OSError:
+                      pass
 
+
+          if __name__ == "__main__":
+              # cythonize(nthreads=...) uses a multiprocessing pool. On spawn-based
+              # platforms (macOS and Windows) every worker re-imports the main module
+              # as __mp_main__, so the build has to sit behind this guard - without
+              # it the child re-enters the build and dies with "An attempt has been
+              # made to start a new process before the current process has finished
+              # its bootstrapping phase".
+              main()
           EOF
 
           python cythonize_build.py
