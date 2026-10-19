@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { usePipeline } from '../hooks/usePipeline'
 import { useModelStore, useUIStore } from '../store'
+import { useRenderQueueStore } from '../store/renderQueue'
 import { Badge, Button, Toggle, Slider, Select, Input, ExportDialog } from '../components/ui'
 import { clsx } from 'clsx'
 import type { ModelResponse, ExportOptions } from '../types/api'
@@ -112,6 +113,7 @@ export function PipelineSidebar() {
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [activeFeature, setActiveFeature] = useState<Record<string, string>>({})
+  const openQueue = useRenderQueueStore((state) => state.openQueue)
 
   // Feature labels and Simple-Mode groups both come from the models.json catalog.
   useFeatures()
@@ -225,8 +227,11 @@ export function PipelineSidebar() {
     setExportDialogOpen(true)
   }
 
-  const handleStartExport = (options: ExportOptions) => {
-    startProcessing(options)
+  const handleStartExport = async (options: ExportOptions) => {
+    // Add the export to the render queue and surface it, so several exports
+    // can be lined up and watched while they run one at a time.
+    const job = await startProcessing(options)
+    if (job) openQueue()
   }
 
   const [busy, setBusy] = useState(false)

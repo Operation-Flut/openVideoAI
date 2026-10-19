@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Sun, Moon, Monitor, Menu } from 'lucide-react'
+import { Sun, Moon, Monitor, Menu, ListVideo } from 'lucide-react'
 import { useUIStore } from '../store'
+import { isActiveStatus, useRenderQueueStore } from '../store/renderQueue'
 import { useTheme } from '../hooks/useTheme'
 import { clsx } from 'clsx'
 
@@ -20,6 +21,15 @@ export function Header() {
   const { sidebarOpen, toggleSidebar } = useUIStore()
   const { theme, resolvedTheme, setTheme, toggleTheme } = useTheme()
   const location = useLocation()
+
+  // Export queue badge: show the in-flight percent while a render runs, or the
+  // number of waiting jobs when the queue is idle but not empty.
+  const jobs = useRenderQueueStore((state) => state.jobs)
+  const openQueue = useRenderQueueStore((state) => state.openQueue)
+  const activeJobs = jobs.filter((job) => isActiveStatus(job.status))
+  const queuedCount = jobs.filter((job) => job.status === 'queued').length
+  const pendingCount = activeJobs.length + queuedCount
+  const activePercent = activeJobs[0]?.progress ?? 0
 
   return (
     <header className="app-header">
@@ -66,6 +76,27 @@ export function Header() {
 
       {/* Window actions */}
       <div className="header-actions">
+        <button
+          onClick={openQueue}
+          className="btn-icon relative"
+          aria-label="Open export queue"
+          title="Export queue"
+        >
+          <ListVideo className="w-4 h-4" />
+          {pendingCount > 0 && (
+            <span
+              className={clsx(
+                'absolute -top-1 -right-1 grid place-items-center h-[15px] px-1 rounded-full',
+                'text-[9px] font-semibold leading-none tabular-nums text-white',
+                'bg-[var(--color-accent)]',
+                activeJobs.length > 0 && 'animate-pulse'
+              )}
+            >
+              {activeJobs.length > 0 ? `${Math.round(activePercent)}%` : pendingCount}
+            </span>
+          )}
+        </button>
+
         <div className="segmented hidden sm:flex" role="group" aria-label="Theme">
           {THEME_ITEMS.map(({ value, label, Icon }) => (
             <button

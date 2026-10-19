@@ -1,7 +1,8 @@
 import { useCallback, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../services/api'
-import { usePipelineStore } from '../store'
+import { usePipelineStore, useProcessingStore } from '../store'
+import { useRenderQueueStore, type RenderJob } from '../store/renderQueue'
 import type { ExportOptions } from '../types/api'
 
 export function usePipeline() {
@@ -55,25 +56,26 @@ export function usePipeline() {
     return !steps.some(s => s.feature === feature)
   }, [steps])
 
-  // Convenience: start processing with the currently selected file
-  const exportCurrentFile = useCallback(async (exportOptions?: ExportOptions) => {
+  // Convenience: queue an export of the currently selected file. The
+  // RenderQueueRunner picks it up and runs it through the backend's single
+  // render slot, so several exports can be lined up back to back.
+  const exportCurrentFile = useCallback(async (exportOptions?: ExportOptions): Promise<RenderJob | null> => {
     const file = selectedFiles?.[0] || null
-    if (!file || steps.length === 0) return
+    if (!file || steps.length === 0) return null
 
     setIsExporting(true)
     try {
-      const task = await api.startProcessingWithFile(
+      const job = useRenderQueueStore.getState().enqueue({
         file,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
         steps,
         outputFormat,
         quality,
-        exportOptions
-      )
-      // Update processing store with new task
-      const { useProcessingStore } = await import('../store')
-      useProcessingStore.getState().setCurrentTask(task)
-    } catch (err) {
-      console.error('Export failed:', err)
+        exportOptions,
+      })
+      return job
     } finally {
       setIsExporting(false)
     }
@@ -87,7 +89,6 @@ export function usePipeline() {
 
     try {
       const task = await api.startPreviewWithFile(file, steps, outputFormat, quality, durationSeconds)
-      const { useProcessingStore } = await import('../store')
       useProcessingStore.getState().setCurrentTask(task)
     } catch (err) {
       console.error('Preview failed:', err)

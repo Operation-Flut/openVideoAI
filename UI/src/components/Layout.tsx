@@ -3,6 +3,8 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { Header } from './Header'
 import { PipelineSidebar } from './PipelineSidebar'
 import { TimelinePanel } from './TimelinePanel'
+import { RenderQueueRunner } from './RenderQueueRunner'
+import { ExportQueueDialog } from './ExportQueueDialog'
 import { useModels } from '../hooks/useModels'
 import { useUIStore } from '../store'
 import { clsx } from 'clsx'
@@ -36,6 +38,11 @@ export function Layout({ children }: { children?: ReactNode }) {
           </aside>
         )}
       </div>
+
+      {/* Export queue: the runner owns the backend's single render slot, and the
+          dialog is available from any route. */}
+      <RenderQueueRunner />
+      <ExportQueueDialog />
     </div>
   )
 }

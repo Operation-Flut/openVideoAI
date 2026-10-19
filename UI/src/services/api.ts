@@ -16,6 +16,7 @@ import type {
   HealthResponse,
   OutputFormat,
   ProcessingFeaturesResponse,
+  ProcessResponse,
   ExportOptionsResponse,
   BrowseResponse,
   ExportOptions,
@@ -144,8 +145,9 @@ class ApiService {
     steps: PipelineStep[],
     outputFormat: OutputFormat,
     quality: string,
-    exportOptions?: ExportOptions
-  ): Promise<ProcessingTask> {
+    exportOptions?: ExportOptions,
+    onUploadProgress?: (percent: number) => void
+  ): Promise<ProcessResponse> {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('steps', JSON.stringify(steps))
@@ -155,8 +157,18 @@ class ApiService {
       formData.append('export_options', JSON.stringify(exportOptions))
     }
 
-    const response = await this.client.post<ProcessingTask>('/processing/file', formData, {
+    const response = await this.client.post<ProcessResponse>('/processing/file', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      // Large sources (multi-GB video) can take far longer than the default
+      // 30 s request timeout; the upload is local, so allow up to 30 minutes.
+      timeout: 30 * 60 * 1000,
+      // Uploading a large source can take a while; report it so the queue can
+      // show progress before the render itself starts.
+      onUploadProgress: (event) => {
+        if (onUploadProgress && event.total) {
+          onUploadProgress(Math.min(100, Math.max(0, (event.loaded / event.total) * 100)))
+        }
+      },
     })
     return response.data
   }

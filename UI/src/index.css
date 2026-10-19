@@ -556,6 +556,18 @@
     @apply h-full rounded-full transition-all duration-300 ease-out bg-[var(--color-accent)];
   }
 
+  /* Indeterminate bar used while a queued export is being uploaded. */
+  .queue-indeterminate-bar {
+    @apply h-full rounded-full bg-[var(--color-accent)] opacity-80;
+    width: 34%;
+    animation: queue-indeterminate 1.15s ease-in-out infinite;
+  }
+
+  @keyframes queue-indeterminate {
+    0% { transform: translateX(-110%); }
+    100% { transform: translateX(330%); }
+  }
+
   /* ========================= Accordion (pipeline) ========================= */
   .accordion-item {
     @apply rounded-[var(--radius-md)] overflow-hidden;

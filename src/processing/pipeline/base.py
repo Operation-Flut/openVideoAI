@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 import logging
+import threading
 import time
 from uuid import uuid4
 
@@ -24,7 +25,18 @@ class ProcessingContext:
     parameters: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
     progress_callback: Optional[Callable[[float, str], None]] = None
-    abort_flag: bool = False
+    # Shared cancellation signal. Sub-contexts created by a pipeline chain reuse
+    # the same event, so setting it once aborts every stage of the chain.
+    abort_event: threading.Event = field(default_factory=threading.Event)
+
+    @property
+    def abort_flag(self) -> bool:
+        """True once cancellation has been requested for this context."""
+        return self.abort_event.is_set()
+
+    def request_abort(self) -> None:
+        """Ask the running pipeline(s) to stop at the next checkpoint."""
+        self.abort_event.set()
 
     def report_progress(self, progress: float, message: str = "") -> None:
         """Report progress via callback and event bus."""
@@ -303,7 +315,9 @@ class PipelineChain:
                     (i / len(self.pipelines)) * 100 + (p / 100) * (100 / len(self.pipelines)),
                     m
                 ),
-                abort_flag=context.abort_flag,
+                # Share the parent's cancellation event so an abort of the task
+                # stops whichever stage is currently running.
+                abort_event=context.abort_event,
             )
 
             try:

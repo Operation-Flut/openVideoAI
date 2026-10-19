@@ -48,6 +48,10 @@ class ProcessingService:
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._tasks = {}
         self._active_task = None
+        # Per-task cancellation signals, keyed by task id. Created when a task
+        # claims the render slot so a cancel that lands before the worker starts
+        # still aborts it.
+        self._abort_events: Dict[str, threading.Event] = {}
         self._shutdown_requested = False
         self._tasks_lock = threading.RLock()
 
@@ -159,6 +163,7 @@ class ProcessingService:
             task.started_at = datetime.now()
             task.message = "Starting processing"
             self._active_task = task_id
+            self._abort_events[task_id] = threading.Event()
 
 
         loop = asyncio.get_event_loop()
@@ -293,6 +298,9 @@ class ProcessingService:
                 },
                 metadata={"task_id": task_id},
                 progress_callback=lambda p, m: self._update_progress(task_id, p, m),
+                # Reuse the task's cancellation event so a cancel request that
+                # arrived before the worker started is honoured here.
+                abort_event=self._abort_events.get(task_id) or threading.Event(),
             )
 
 
@@ -407,6 +415,7 @@ class ProcessingService:
 
             with self._tasks_lock:
                 self._active_task = None
+                self._abort_events.pop(task_id, None)
 
     def _export_metadata(
         self,
@@ -635,16 +644,34 @@ class ProcessingService:
             return self._tasks.get(task_id)
 
     def cancel_task(self, task_id: str) -> bool:
-        """Cancel a running task."""
+        """Cancel a running task by signalling its pipeline to stop.
+
+        The pipeline checks its context's abort flag at every stage/frame, so
+        setting the event makes the render unwind with :class:`ProcessingAborted`
+        (the task then ends in the ``aborted`` state).
+        """
         with self._tasks_lock:
-            if task_id == self._active_task:
-                self._shutdown_requested = True
-                return True
-            return False
+            if task_id != self._active_task:
+                return False
+
+            event = self._abort_events.get(task_id)
+            if event is not None:
+                event.set()
+
+            task = self._tasks.get(task_id)
+            if task is not None and task.status == TaskStatus.PROCESSING:
+                task.message = "Cancelling..."
+
+            return True
 
     def request_shutdown(self):
         """Request shutdown of all processing."""
         self._shutdown_requested = True
+        with self._tasks_lock:
+            if self._active_task is not None:
+                event = self._abort_events.get(self._active_task)
+                if event is not None:
+                    event.set()
 
     def is_shutdown_requested(self) -> bool:
         return self._shutdown_requested

@@ -83,6 +83,13 @@ export interface ProcessingTask {
   output_path: string | null
 }
 
+/** Response of the upload endpoints: the task exists, poll it for details. */
+export interface ProcessResponse {
+  task_id: string
+  status: TaskStatus
+  message: string
+}
+
 export interface PipelineStep {
   feature: string
   model: string

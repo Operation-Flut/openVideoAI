@@ -10,11 +10,15 @@ interface DialogProps {
   description?: ReactNode
   /** Optional icon rendered next to the title. */
   icon?: ReactNode
+  /** Controls shown on the right side of the header, before the close button. */
+  headerActions?: ReactNode
   children: ReactNode
   footer?: ReactNode
   /** Tailwind max-width utility; controls the popup width. */
   size?: string
   className?: string
+  /** Extra classes for the scrollable body (e.g. `p-0` for full-bleed content). */
+  bodyClassName?: string
 }
 
 /**
@@ -29,10 +33,12 @@ export function Dialog({
   title,
   description,
   icon,
+  headerActions,
   children,
   footer,
   size = 'max-w-[760px]',
   className,
+  bodyClassName,
 }: DialogProps) {
   useEffect(() => {
     if (!open) return
@@ -66,7 +72,7 @@ export function Dialog({
         onMouseDown={(event) => event.stopPropagation()}
       >
         {(title || description) && (
-          <header className="modal-header">
+          <header className={clsx('modal-header', headerActions && 'items-center')}>
             <div className="flex items-start gap-3 min-w-0">
               {icon && <span className="mt-0.5 shrink-0 text-[var(--color-accent)]">{icon}</span>}
               <div className="min-w-0">
@@ -74,13 +80,16 @@ export function Dialog({
                 {description && <div className="modal-description">{description}</div>}
               </div>
             </div>
-            <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2.5 shrink-0">
+              {headerActions}
+              <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </header>
         )}
 
-        <div className="modal-body">{children}</div>
+        <div className={clsx('modal-body', bodyClassName)}>{children}</div>
 
         {footer && <footer className="modal-footer">{footer}</footer>}
       </div>
