@@ -6,8 +6,8 @@ opencv-python
 # flow fallback (cv2.optflow) in Frame Interpolation. Farnebäck, DIS and
 # Lucas-Kanade work with the base wheel above.
 # opencv-contrib-python
-torch==2.5.1
-torchvision==0.20.1
+torch==2.14.1
+torchvision==0.29.1
 
 # Web API
 fastapi>=0.142.4
